@@ -1,0 +1,2797 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>BIOCONVERT MINI — គំរូដើមធ្យូងជីវម៉ាសអន្តរកម្ម និងឯកសារយោងវិស្វកម្ម</title>
+
+    <!-- External CDNs: Google Fonts (Kantumruy Pro, Noto Sans Khmer & Battambang for high-legibility Khmer), Tailwind CSS, Three.js r128, OrbitControls, GSAP -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <style>
+        :root {
+            --cad-bg: #050811;
+            --cad-grid-major: #0e172a;
+            --cad-grid-minor: #080d1a;
+            --cad-cyan: #00f0ff;
+            --cad-cyan-glow: rgba(0, 240, 255, 0.45);
+            --cad-amber: #ff8800;
+            --cad-amber-glow: rgba(255, 136, 0, 0.45);
+            --cad-green: #10b981;
+            --cad-red: #ef4444;
+            --cad-panel-bg: rgba(9, 15, 26, 0.94);
+            --cad-border: rgba(0, 240, 255, 0.30);
+            --text-main: #f8fafc;
+            --text-muted: #cbd5e1;
+            --wire-ac-live: #8b4513;
+            --wire-ac-neutral: #0284c7;
+            --wire-earth: #84cc16;
+            --wire-dc-pos: #dc2626;
+            --wire-dc-neg: #1e293b;
+            --wire-sensor: #eab308;
+            --font-khmer: 'Kantumruy Pro', 'Noto Sans Khmer', 'Battambang', 'Inter', -apple-system, sans-serif;
+            --font-mono: 'Kantumruy Pro', 'Noto Sans Khmer', 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        html, body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: var(--cad-bg);
+            font-family: var(--font-khmer);
+            color: var(--text-main);
+            line-height: 1.75;
+            letter-spacing: 0 !important;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+            background-image: 
+                linear-gradient(var(--cad-grid-major) 1px, transparent 1px),
+                linear-gradient(90deg, var(--cad-grid-major) 1px, transparent 1px),
+                linear-gradient(var(--cad-grid-minor) 1px, transparent 1px),
+                linear-gradient(90deg, var(--cad-grid-minor) 1px, transparent 1px);
+            background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+            background-position: center center;
+        }
+
+        /* High-legibility Khmer overrides so subscripts (ជើងអក្សរ) and vowel diacritics never clip */
+        h1, h2, h3, h4, h5, p, span, div, button, td, th, li, label, select, option {
+            font-family: var(--font-khmer);
+            letter-spacing: 0 !important;
+        }
+
+        .mono {
+            font-family: var(--font-mono);
+            line-height: 1.7;
+        }
+
+        .font-orbitron {
+            font-family: var(--font-khmer);
+            font-weight: 700;
+            line-height: 1.6;
+        }
+
+        /* Upgrade small utility font sizes for clear, effortless Khmer reading */
+        .text-\[9px\], .text-\[10px\] {
+            font-size: 0.78rem !important;
+            line-height: 1.65 !important;
+        }
+        .text-\[11px\], .text-xs {
+            font-size: 0.86rem !important;
+            line-height: 1.75 !important;
+        }
+        .text-sm {
+            font-size: 0.95rem !important;
+            line-height: 1.75 !important;
+        }
+
+        #webgl-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            display: block;
+        }
+
+        .ui-layer {
+            position: relative;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .interactive {
+            pointer-events: auto;
+        }
+
+        .cad-panel {
+            background: var(--cad-panel-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--cad-border);
+            box-shadow: 0 16px 40px rgba(0,0,0,0.7), inset 0 0 16px rgba(0, 240, 255, 0.05);
+        }
+
+        ::-webkit-scrollbar { width: 7px; height: 7px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.35); }
+        ::-webkit-scrollbar-thumb { background: rgba(0, 240, 255, 0.4); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(0, 240, 255, 0.75); }
+
+        .btn-cad {
+            background: rgba(0, 240, 255, 0.07);
+            border: 1px solid rgba(0, 240, 255, 0.38);
+            color: var(--cad-cyan);
+            font-family: var(--font-khmer);
+            font-size: 0.84rem;
+            font-weight: 500;
+            line-height: 1.6;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-radius: 8px;
+            gap: 8px;
+        }
+        .btn-cad:hover {
+            background: rgba(0, 240, 255, 0.22);
+            box-shadow: 0 0 18px var(--cad-cyan-glow);
+            transform: translateY(-1px);
+        }
+        .btn-cad.active {
+            background: var(--cad-cyan);
+            color: #050811;
+            font-weight: 700;
+            box-shadow: 0 0 24px var(--cad-cyan-glow);
+        }
+
+        .btn-trace {
+            border-radius: 6px;
+            font-family: var(--font-khmer);
+            font-size: 0.82rem;
+            line-height: 1.6;
+            padding: 7px 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            color: #e2e8f0;
+            text-align: left;
+        }
+        .btn-trace:hover {
+            background: rgba(255, 255, 255, 0.14);
+            border-color: rgba(255, 255, 255, 0.38);
+        }
+        .btn-trace.active {
+            font-weight: 700;
+            border-color: currentColor;
+            box-shadow: 0 0 14px currentColor;
+        }
+
+        /* Spec / BOM items */
+        .spec-item {
+            border-left: 3px solid rgba(0, 240, 255, 0.4);
+            padding: 0.8rem 0.95rem;
+            margin-bottom: 0.85rem;
+            border-radius: 0 8px 8px 0;
+            background: rgba(0, 0, 0, 0.35);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .spec-item:hover {
+            border-left-color: var(--cad-cyan);
+            background: rgba(0, 240, 255, 0.10);
+            transform: translateX(3px);
+        }
+        .spec-item.active {
+            border-left-color: var(--cad-cyan);
+            background: rgba(0, 240, 255, 0.16);
+            box-shadow: 0 0 16px rgba(0, 240, 255, 0.18);
+        }
+        .spec-title {
+            color: var(--cad-cyan);
+            font-weight: 700;
+            font-size: 0.94rem;
+            line-height: 1.65;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .spec-desc {
+            font-size: 0.86rem;
+            color: #cbd5e1;
+            line-height: 1.75;
+            margin-top: 5px;
+        }
+
+        /* 3D Process Label */
+        #process-label {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 25;
+            background: rgba(6, 9, 17, 0.95);
+            border: 1px solid var(--cad-cyan);
+            padding: 10px 16px;
+            border-radius: 8px;
+            color: #ffffff;
+            font-family: var(--font-khmer);
+            font-size: 0.92rem;
+            font-weight: 600;
+            line-height: 1.6;
+            box-shadow: 0 0 20px var(--cad-cyan-glow);
+            transform: translate(-50%, -100%);
+            margin-top: -14px;
+            transition: opacity 0.25s ease;
+            backdrop-filter: blur(8px);
+            white-space: nowrap;
+        }
+        #process-label::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 6px 6px 0;
+            border-style: solid;
+            border-color: var(--cad-cyan) transparent transparent transparent;
+        }
+
+        /* Fabrication Modal Drawer */
+        .fabrication-modal {
+            position: absolute;
+            top: 85px;
+            left: 24px;
+            width: 520px;
+            max-height: calc(100vh - 110px);
+            overflow-y: auto;
+            background: var(--cad-panel-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--cad-cyan);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.75), 0 0 25px var(--cad-cyan-glow);
+            transform: translateX(-560px);
+            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+            opacity: 0;
+        }
+        .fabrication-modal.open {
+            transform: translateX(0);
+            pointer-events: auto;
+            opacity: 1;
+        }
+
+        /* Tab Controls in Sidebar */
+        .tab-btn {
+            font-family: var(--font-khmer);
+            font-size: 0.84rem;
+            font-weight: 500;
+            line-height: 1.6;
+            padding: 8px 12px;
+            color: var(--text-muted);
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .tab-btn:hover {
+            color: #ffffff;
+        }
+        .tab-btn.active {
+            color: var(--cad-cyan);
+            border-bottom-color: var(--cad-cyan);
+            font-weight: 700;
+        }
+
+        /* Wire Schedule Table */
+        .wire-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--font-khmer);
+            font-size: 0.82rem;
+            line-height: 1.65;
+        }
+        .wire-table th {
+            background: rgba(4, 9, 20, 0.92);
+            color: var(--cad-cyan);
+            text-align: left;
+            padding: 9px 10px;
+            border-bottom: 1px solid rgba(0, 240, 255, 0.35);
+            font-weight: 700;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+        .wire-table td {
+            padding: 9px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            color: #f1f5f9;
+            vertical-align: top;
+        }
+        .wire-table tr:hover td {
+            background: rgba(0, 240, 255, 0.10);
+        }
+        .wire-badge {
+            display: inline-block;
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+            border: 1px solid rgba(255,255,255,0.25);
+        }
+
+        /* Responsive Mobile Layout Adjustments */
+        #mobile-panel-backdrop {
+            opacity: 0;
+            transition: opacity 0.25s ease;
+            pointer-events: none;
+        }
+        #mobile-panel-backdrop.visible {
+            display: block;
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .hud-chip {
+            border: 1px solid rgba(0,240,255,0.28);
+            background: rgba(5,8,17,0.85);
+            box-shadow: inset 0 0 12px rgba(0,240,255,0.05);
+            font-size: 0.8rem !important;
+            line-height: 1.5 !important;
+        }
+        .scanline::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 3;
+            background: repeating-linear-gradient(to bottom, transparent 0 3px, rgba(255,255,255,0.014) 4px);
+            mix-blend-mode: screen;
+            opacity: .18;
+        }
+        @media (max-width: 768px) {
+            .cad-sidebar {
+                position: fixed !important;
+                top: 70px !important;
+                right: 0 !important;
+                width: 92vw !important;
+                max-width: 440px !important;
+                height: calc(100vh - 85px) !important;
+                z-index: 45 !important;
+                transform: translateX(110%);
+                transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+                box-shadow: -10px 0 40px rgba(0,0,0,0.85);
+            }
+            .cad-sidebar.mobile-open {
+                transform: translateX(0) !important;
+            }
+            .fabrication-modal {
+                top: 75px !important;
+                left: 4vw !important;
+                width: 92vw !important;
+                max-height: calc(100vh - 90px) !important;
+            }
+        }
+
+        /* ===== ENHANCED UX / RESILIENCE LAYER ===== */
+        :root { --safe-bottom: env(safe-area-inset-bottom, 0px); }
+        button, input, select { -webkit-tap-highlight-color: transparent; }
+        button { touch-action: manipulation; }
+        #webgl-container { touch-action: none; }
+        #webgl-container canvas { display:block; width:100% !important; height:100% !important; outline:none; }
+        .ui-layer { isolation:isolate; }
+        .interactive { touch-action: manipulation; }
+        .btn-cad, .btn-trace, .tab-btn, .spec-item { min-height:40px; }
+        .tab-btn { min-height:44px; }
+        .cad-sidebar { min-width:0; }
+        .fab-safe { bottom:calc(1rem + var(--safe-bottom)); }
+        #startup-screen {
+            position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center;
+            background:radial-gradient(circle at 50% 35%, rgba(0,240,255,.09), transparent 42%), #050811;
+            transition:opacity .35s ease, visibility .35s ease;
+        }
+        #startup-screen.hidden { opacity:0; visibility:hidden; pointer-events:none; }
+        .startup-card { width:min(92vw,540px); padding:26px; border:1px solid rgba(0,240,255,.35); border-radius:16px;
+            background:rgba(9,15,26,.96); box-shadow:0 20px 70px rgba(0,0,0,.7), inset 0 0 30px rgba(0,240,255,.04); }
+        .startup-spinner { width:36px; height:36px; border:3px solid rgba(0,240,255,.18); border-top-color:#00f0ff; border-radius:50%; animation:spin .9s linear infinite; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        #engine-warning { display:none; }
+        #engine-warning.visible { display:block; }
+        .help-popover { position:fixed; right:20px; top:78px; width:min(420px,calc(100vw - 40px)); z-index:90; display:none; }
+        .help-popover.open { display:block; }
+        .kbd { border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.08); border-radius:4px; padding:2px 7px; font: 0.78rem var(--font-khmer); font-weight: 600; }
+        .safety-strip { border:1px solid rgba(245,158,11,.32); background:rgba(120,53,15,.22); color:#fde68a; font-size: 0.8rem !important; line-height: 1.6 !important; }
+        @media (max-width: 768px) {
+            html, body { overflow:hidden; }
+            .ui-layer > header { padding:12px; }
+            header h1 span:last-child { display:none; }
+            header p { display:none; }
+            .cad-panel { box-shadow:0 12px 32px rgba(0,0,0,.62); }
+            .cad-sidebar { top:64px !important; right:10px !important; width:calc(100vw - 20px) !important; max-width:none !important; height:calc(100dvh - 76px) !important; }
+            .fabrication-modal { left:10px !important; width:calc(100vw - 20px) !important; max-height:calc(100dvh - 88px) !important; padding:18px !important; }
+            #btn-mobile-panel-toggle { bottom:calc(14px + var(--safe-bottom)); right:14px; max-width:calc(100vw - 28px); }
+            .help-popover { top:68px; right:10px; width:calc(100vw - 20px); }
+        }
+        @media (max-width: 520px) {
+            .btn-cad, .btn-trace { font-size:.76rem; }
+            .wire-table { font-size:.75rem; }
+            .wire-table th, .wire-table td { padding:6px 8px; }
+            .hud-chip { font-size:0.74rem !important; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.001ms !important; transition-duration:.001ms !important; }
+        }
+
+        /* ===== INFORMATION DRAWER FIX ===== */
+        .info-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 70;
+            background: rgba(0,0,0,.55);
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity .22s ease, visibility .22s ease;
+        }
+        .info-modal-backdrop.visible {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+        .fabrication-modal {
+            position: fixed !important;
+            z-index: 80 !important;
+            top: 86px !important;
+            left: 50% !important;
+            width: min(760px, calc(100vw - 40px)) !important;
+            max-height: calc(100dvh - 110px) !important;
+            overflow-y: auto !important;
+            overscroll-behavior: contain;
+            transform: translate(-50%, -120vh) !important;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: transform .32s cubic-bezier(.16,1,.3,1), opacity .2s ease, visibility .2s ease !important;
+        }
+        .fabrication-modal.open {
+            transform: translate(-50%, 0) !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+        }
+        .fabrication-modal .modal-scroll-hint {
+            position: sticky; bottom: -16px; margin: 10px -16px -16px; padding: 8px;
+            text-align:center; background:linear-gradient(transparent, rgba(9,15,26,.96) 45%);
+            color:#94a3b8; font:0.78rem var(--font-khmer);
+        }
+        @media (max-width: 768px) {
+            .info-modal-backdrop { z-index: 74; }
+            .fabrication-modal {
+                z-index: 85 !important;
+                top: 72px !important;
+                left: 50% !important;
+                width: calc(100vw - 20px) !important;
+                max-height: calc(100dvh - 84px) !important;
+                padding: 16px !important;
+                border-radius: 14px;
+            }
+            .fabrication-modal.open { transform: translate(-50%, 0) !important; }
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden scanline">
+
+    <div id="startup-screen" aria-live="polite">
+        <div class="startup-card">
+            <div class="flex items-center gap-3.5 mb-4">
+                <div class="startup-spinner" aria-hidden="true"></div>
+                <div>
+                    <div class="font-orbitron text-[#00f0ff] text-base">BIOCONVERT MINI — ប្រព័ន្ធបំប្លែងធ្យូងជីវម៉ាស</div>
+                    <div class="mono text-xs text-slate-300">កំពុងផ្ទុកប្រព័ន្ធវិស្វកម្មអន្តរកម្ម...</div>
+                </div>
+            </div>
+            <div class="h-2 bg-slate-800 rounded-full overflow-hidden mb-3">
+                <div id="startup-progress" class="h-full bg-gradient-to-r from-[#00f0ff] to-amber-400" style="width:18%;transition:width .35s ease"></div>
+            </div>
+            <p id="startup-status" class="mono text-xs text-slate-300">កំពុងរៀបចំគំរូ 3D...</p>
+        </div>
+    </div>
+
+    <!-- Mobile Floating Action Button to Toggle Info Panel & Simulator -->
+    <button id="btn-mobile-panel-toggle" onclick="toggleMobileSidebar()" class="fixed bottom-6 right-6 z-50 md:hidden bg-gradient-to-r from-[#00f0ff] to-[#0284c7] text-[#050811] font-bold px-4 py-3 rounded-full shadow-2xl flex items-center gap-2 border border-cyan-300 active:scale-95 transition-transform">
+        <span id="mobile-fab-icon">📋</span> <span id="mobile-fab-text" class="text-xs">បង្ហាញព័ត៌មាន និងកម្មវិធីសាកល្បង</span>
+    </button>
+
+    <div id="mobile-panel-backdrop" class="fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px] hidden md:hidden"></div>
+
+    <!-- 3D WebGL Canvas Layer -->
+    <div id="webgl-container" aria-label="គំរូវិស្វកម្ម 3D អន្តរកម្ម"></div>
+    <div id="engine-warning" class="ui-layer fixed inset-x-4 top-1/2 -translate-y-1/2 z-30 max-w-xl mx-auto cad-panel rounded-xl p-5 interactive">
+        <div class="font-orbitron text-[#00f0ff] text-base mb-2">ប្រព័ន្ធជំនួសម៉ាស៊ីន 3D</div>
+        <p class="text-sm text-slate-200 leading-relaxed">ម៉ាស៊ីន 3D អន្តរកម្មមិនអាចផ្ទុកនៅក្នុងកម្មវិធីរុករកនេះបានទេ។ បន្ទះឯកសារយោងវិស្វកម្ម កម្មវិធីសាកល្បង និងឯកសារណែនាំនៅតែអាចប្រើប្រាស់បានធម្មតា។ សូមសាកល្បងកម្មវិធីរុករកផ្សេង ឬអនុញ្ញាតឱ្យដំណើរការ JavaScript/CDN ប្រសិនបើអ្នកត្រូវការមើលគំរូ 3D។</p>
+    </div>
+    <div id="process-label" class="opacity-0">ប្រព័ន្ធរង់ចាំដំណើរការ</div>
+
+    <!-- Top Telemetry Header -->
+    <header class="ui-layer w-full p-4 md:p-5 flex justify-between items-center gap-3 flex-wrap">
+        <div>
+            <h1 class="text-xl md:text-2xl font-bold text-white flex items-center gap-3 flex-wrap">
+                <svg class="w-6 h-6 text-[#00f0ff] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                </svg>
+                <span class="font-orbitron">BIOCONVERT MINI</span>
+                <span class="text-[#00f0ff] text-sm md:text-base font-normal opacity-95">/ ប្រព័ន្ធ CAD ធ្យូងជីវម៉ាស និងបណ្តាញអគ្គិសនីខាងក្នុង</span>
+            </h1>
+            <p class="mono text-xs text-slate-300 mt-1">
+                ស្ថាបត្យកម្មរូបវន្តពេញលេញ • បណ្តាញខ្សែភ្លើង 3D • ប្លង់មេសម្រាប់ការផលិត និងដំឡើងគ្រឿងបង្គុំ
+            </p>
+        </div>
+
+        <div class="flex items-center gap-2.5 flex-wrap">
+            <div class="interactive cad-panel px-3 py-1.5 rounded-lg flex items-center gap-2.5 border border-[#00f0ff]/30">
+                <span class="mono text-xs text-slate-300">សីតុណ្ហភាពឡដុត៖</span>
+                <span id="live-temp-display" class="mono text-xs font-bold text-orange-400">24.5 °C</span>
+            </div>
+            <div class="interactive cad-panel px-3 py-1.5 rounded-lg flex items-center gap-2.5 border border-[#00f0ff]/30">
+                <span class="mono text-xs text-slate-300">បណ្តាញភ្លើង DC៖</span>
+                <span id="live-voltage-display" class="mono text-xs font-bold text-cyan-400">24.1 V</span>
+            </div>
+            <div class="interactive cad-panel px-3 py-1.5 rounded-lg flex items-center gap-2 border border-[#00f0ff]/30">
+                <div id="status-beacon" class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></div>
+                <span id="status-text" class="mono text-xs text-green-400">ប្រព័ន្ធដំណើរការ</span>
+            </div>
+            <button id="btn-help" class="interactive cad-panel px-2.5 py-1.5 rounded-lg text-slate-300 hover:text-white mono text-xs flex items-center gap-1" title="មគ្គុទ្ទេសក៍បញ្ជារហ័ស">
+                <span>❓ ជំនួយ</span>
+            </button>
+            <button id="btn-reset-ui" class="interactive cad-panel px-2.5 py-1.5 rounded-lg text-slate-300 hover:text-white mono text-xs flex items-center gap-1" title="កំណត់ផ្ទាំងបង្ហាញឡើងវិញ">
+                <span>↺ កំណត់ឡើងវិញ</span>
+            </button>
+            <button onclick="toggleAudioEngine()" class="interactive cad-panel px-2.5 py-1.5 rounded-lg text-slate-300 hover:text-white mono text-xs flex items-center gap-1.5" title="បើក/បិទសំឡេង">
+                <span id="audio-icon">🔊</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Focused information backdrop: keeps component details above the control HUD -->
+    <div id="info-modal-backdrop" class="info-modal-backdrop" aria-hidden="true"></div>
+
+    <!-- Slide-out Fabrication & Build Drawer -->
+    <div id="fabrication-modal" class="fabrication-modal interactive ui-layer">
+        <div class="flex justify-between items-center pb-3 mb-3 border-b border-slate-700">
+            <div>
+                <span id="card-part-number" class="text-xs text-[#00f0ff] font-mono">ម៉ូឌុល ០១</span>
+                <h3 id="card-name" class="font-bold text-lg font-orbitron text-[#00f0ff] mt-0.5">គ្រឿងបង្គុំ</h3>
+            </div>
+            <button onclick="closeModal()" class="text-slate-400 hover:text-white text-2xl leading-none px-2 py-1" title="បិទ">&times;</button>
+        </div>
+
+        <p class="text-sm text-slate-200 leading-relaxed mb-4" id="card-role-desc">
+            ការពិពណ៌នាវិស្វកម្ម និងតួនាទីមេកានិចរបស់គ្រឿងបង្គុំ។
+        </p>
+
+        <!-- Spec Grid -->
+        <div class="space-y-2 mb-5 bg-black/45 p-3.5 rounded-lg border border-slate-800 mono text-xs">
+            <div class="flex justify-between gap-4">
+                <span class="text-slate-400 shrink-0">ប្រភេទសម្ភារៈ៖</span>
+                <span id="card-material" class="text-white font-semibold text-right">ដែកអ៊ីណុក SS304 អត់ថ្នេរ</span>
+            </div>
+            <div class="flex justify-between gap-4">
+                <span class="text-slate-400 shrink-0">ទំហំរូបវន្ត៖</span>
+                <span id="card-dims" class="text-white font-semibold text-right">Ø 150 mm × 300 mm</span>
+            </div>
+            <div class="flex justify-between gap-4">
+                <span class="text-slate-400 shrink-0">ឧបករណ៍ដែលត្រូវការ៖</span>
+                <span id="card-tools" class="text-cyan-300 font-semibold text-right">ម៉ាស៊ីនផ្សារ TIG, ម៉ាស៊ីនក្រឡឹង</span>
+            </div>
+            <div class="flex justify-between gap-4">
+                <span class="text-slate-400 shrink-0">ប្រភពទិញនៅកម្ពុជា៖</span>
+                <span id="card-source" class="text-amber-300 font-semibold text-right">ផ្លូវជាតិលេខ ៦ / ផ្សារលើ ខេត្តសៀមរាប</span>
+            </div>
+        </div>
+
+        <!-- Step-by-Step How-to-Make Section -->
+        <div class="mb-5">
+            <h4 class="text-sm text-[#00f0ff] mono font-bold mb-2.5 flex items-center gap-2">
+                <span>🔨</span> របៀបផលិត និងដំឡើងជាក់ស្តែងតាមលំដាប់លំដោយ៖
+            </h4>
+            <div id="card-steps" class="space-y-2.5 text-sm text-slate-200 leading-relaxed pl-3 border-l-2 border-[#00f0ff]/40">
+                <!-- Dynamically populated steps -->
+            </div>
+        </div>
+
+        <!-- Critical Failure Prevention Warning -->
+        <div class="border-t border-slate-700/80 pt-3 bg-red-950/25 p-3.5 rounded-lg border border-red-500/30">
+            <h4 class="text-xs text-red-400 mono font-bold mb-1">⚠️ ហានិភ័យនៃការខូចខាតសំខាន់ៗ និងវិធីការពារ៖</h4>
+            <p id="card-warning" class="text-sm text-slate-200 leading-relaxed">
+                ការព្រមានសំខាន់សម្រាប់អ្នកផលិត និងដំឡើង។
+            </p>
+        </div>
+    </div>
+
+    <!-- Compact Engineering HUD -->
+    <div class="ui-layer fixed top-[82px] left-1/2 -translate-x-1/2 hidden lg:flex items-center gap-2.5 interactive">
+        <div class="hud-chip rounded-full px-3.5 py-1.5 mono text-slate-200">
+            <span class="text-[#00f0ff]">●</span> គំរូវិស្វកម្ម 3D ផ្ទាល់
+        </div>
+        <div class="hud-chip rounded-full px-3.5 py-1.5 mono text-slate-200">ទាញម៉ៅ = បង្វិលមើល</div>
+        <div class="hud-chip rounded-full px-3.5 py-1.5 mono text-slate-200">រមូរកង់ម៉ៅ = ពង្រីក/បង្រួម</div>
+        <div class="hud-chip rounded-full px-3.5 py-1.5 mono text-slate-200">ចុចលើផ្នែក = ពិនិត្យលម្អិត</div>
+    </div>
+
+    <div class="ui-layer fixed left-1/2 -translate-x-1/2 top-[120px] lg:top-[126px] z-20 w-[min(780px,calc(100vw-24px))] pointer-events-none">
+        <div class="safety-strip rounded-lg px-3.5 py-2 mono text-center">
+            ផ្ទាំងឯកសារយោង និងការសាកល្បង • ចរន្តអគ្គិសនី 220V AC និងឧបករណ៍បំបែកកំដៅសីតុណ្ហភាពខ្ពស់ ទាមទារការត្រួតពិនិត្យពីអ្នកជំនាញ • សូមផ្ទៀងផ្ទាត់តម្លៃវិស្វកម្មទាំងអស់មុនពេលផលិត
+        </div>
+    </div>
+
+    <div id="help-popover" class="help-popover cad-panel rounded-xl p-4 interactive">
+        <div class="flex items-center justify-between mb-3">
+            <div class="font-orbitron text-sm text-[#00f0ff]">មគ្គុទ្ទេសក៍បញ្ជារហ័ស</div>
+            <button id="btn-help-close" class="text-xl text-slate-400 hover:text-white px-1">×</button>
+        </div>
+        <div class="space-y-2.5 mono text-xs text-slate-200 leading-relaxed">
+            <div><span class="kbd">ទាញម៉ៅ (DRAG)</span> បង្វិលមើលគំរូ 3D ជុំវិញ</div>
+            <div><span class="kbd">កង់ម៉ៅ (WHEEL)</span> ពង្រីក ឬបង្រួមគំរូ</div>
+            <div><span class="kbd">ចុច (CLICK)</span> ពិនិត្យមើលព័ត៌មានលម្អិតនៃគ្រឿងបង្គុំ</div>
+            <div><span class="kbd">ESC</span> បិទផ្ទាំងព័ត៌មានដែលកំពុងបើក</div>
+            <div><span class="kbd">R</span> កំណត់មុំកាមេរ៉ា និងផ្ទាំងបង្ហាញឡើងវិញ</div>
+            <div><span class="kbd">1–5</span> ប្តូរផ្ទាំងឯកសារយោងទាំង ៥ យ៉ាងរហ័ស</div>
+        </div>
+    </div>
+
+    <!-- Main UI Controls Layer -->
+    <div class="ui-layer flex-1 flex justify-between items-end p-4 md:p-5 pb-5 gap-4">
+
+        <!-- Left Column: Toolbars, Circuit Tracers, Camera Focus -->
+        <div class="flex flex-col gap-2.5 interactive max-h-[82vh] overflow-y-auto pr-1">
+
+            <!-- 3D Display Controls -->
+            <div class="cad-panel p-3.5 rounded-xl flex flex-col gap-2 w-64">
+                <div class="text-xs text-slate-300 mono mb-1 pb-1.5 border-b border-slate-700 flex justify-between items-center">
+                    <span>ការបង្ហាញរូបភាព</span>
+                    <span class="text-[#00f0ff] font-bold">ទម្រង់ 3D</span>
+                </div>
+
+                <button id="btn-xray" class="btn-cad active">
+                    <span>ប្លង់ឆ្លុះ X-RAY</span>
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                </button>
+
+                <button id="btn-solid" class="btn-cad">
+                    <span>គំរូដើមរូបវន្តតាន់</span>
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                </button>
+
+                <button id="btn-explode" class="btn-cad">
+                    <span>បំបែកមើលគ្រឿងបង្គុំ</span>
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                </button>
+
+                <button id="btn-assemble" class="btn-cad hidden">
+                    <span>ផ្គុំគ្រឿងបង្គុំឡើងវិញ</span>
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4h16v16H4z"></path></svg>
+                </button>
+
+                <button id="btn-chassis-toggle" class="btn-cad">
+                    <span>បើក/បិទគម្របតួម៉ាស៊ីន</span>
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                </button>
+            </div>
+
+            <!-- Circuit & Wire Tracing Selector -->
+            <div class="cad-panel p-3.5 rounded-xl flex flex-col gap-2 w-64">
+                <div class="text-xs text-slate-300 mono mb-1 pb-1.5 border-b border-slate-700 flex justify-between items-center">
+                    <span>សៀគ្វីអគ្គិសនីខាងក្នុង</span>
+                    <span class="text-amber-400 font-bold">ការតាមដានខ្សែ</span>
+                </div>
+
+                <button onclick="traceCircuit('all')" id="trace-all" class="btn-trace active text-[#00f0ff]">
+                    <span class="w-3 h-3 rounded-full bg-[#00f0ff] shrink-0"></span>
+                    <span>បណ្តាញខ្សែភ្លើងទាំងអស់</span>
+                </button>
+                <button onclick="traceCircuit('ac')" id="trace-ac" class="btn-trace text-amber-400">
+                    <span class="w-3 h-3 rounded-full bg-[#8b4513] shrink-0"></span>
+                    <span>ភ្លើងមេ 220V AC និងឧបករណ៍កំដៅ</span>
+                </button>
+                <button onclick="traceCircuit('dc')" id="trace-dc" class="btn-trace text-red-400">
+                    <span class="w-3 h-3 rounded-full bg-red-500 shrink-0"></span>
+                    <span>បណ្តាញម៉ូទ័រ 24V DC</span>
+                </button>
+                <button onclick="traceCircuit('sensor')" id="trace-sensor" class="btn-trace text-yellow-300">
+                    <span class="w-3 h-3 rounded-full bg-yellow-400 shrink-0"></span>
+                    <span>សេនស័រ K-Type និងប្រព័ន្ធ PID</span>
+                </button>
+                <button onclick="traceCircuit('estop')" id="trace-estop" class="btn-trace text-rose-300">
+                    <span class="w-3 h-3 rounded-full bg-rose-500 shrink-0"></span>
+                    <span>សៀគ្វីប៊ូតុងសុវត្ថិភាព E-Stop</span>
+                </button>
+                <button onclick="traceCircuit('ground')" id="trace-ground" class="btn-trace text-lime-400">
+                    <span class="w-3 h-3 rounded-full bg-lime-500 shrink-0"></span>
+                    <span>ប្រព័ន្ធខ្សែដីសុវត្ថិភាព (PE)</span>
+                </button>
+            </div>
+
+            <!-- Kinematics & Simulation -->
+            <div class="cad-panel p-3.5 rounded-xl flex flex-col gap-2 w-64">
+                <div class="text-xs text-slate-300 mono mb-1 pb-1.5 border-b border-slate-700">
+                    <span>ចលនាដំណើរការម៉ាស៊ីន</span>
+                </div>
+
+                <button id="btn-simulate" class="btn-cad text-orange-400 border-orange-500/40 hover:border-orange-400 hover:bg-orange-500/20">
+                    <span id="sim-btn-text">ដំណើរការខ្សែសង្វាក់ពេញលេញ</span>
+                    <svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
+                </button>
+            </div>
+
+            <!-- Quick Focus Buttons -->
+            <div class="cad-panel p-3.5 rounded-xl flex flex-col gap-2 w-64">
+                <div class="text-xs text-slate-300 mono mb-1 pb-1.5 border-b border-slate-700">
+                    <span>ផ្តោតកាមេរ៉ាទៅលើ</span>
+                </div>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="focusComponent('retort')" class="btn-cad text-xs justify-center">ឡដុតកំដៅ</button>
+                    <button onclick="focusComponent('electronics')" class="btn-cad text-xs justify-center text-amber-300">ប្រព័ន្ធអគ្គិសនី</button>
+                    <button onclick="focusComponent('crusher')" class="btn-cad text-xs justify-center">ម៉ាស៊ីនកិន</button>
+                    <button onclick="focusComponent('press')" class="btn-cad text-xs justify-center">ម៉ាស៊ីនសង្កត់</button>
+                    <button onclick="focusComponent('panel')" class="btn-cad text-xs justify-center">ផ្ទាំងបញ្ជា</button>
+                    <button onclick="focusComponent('reset')" class="btn-cad text-xs justify-center text-[#00f0ff]">កំណត់ឡើងវិញ</button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Center Bottom Process Timeline Bar -->
+        <div class="cad-panel px-5 py-3.5 rounded-xl hidden xl:flex items-center gap-5 interactive">
+            <div class="mono text-xs">
+                <span class="text-slate-300">ដំណាក់កាល៖</span>
+                <span id="cycle-stage-name" class="text-white font-bold ml-1.5 font-orbitron text-sm text-[#00f0ff]">រង់ចាំដំណើរការ</span>
+            </div>
+            <div class="w-56 h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                <div id="cycle-progress-bar" class="h-full bg-gradient-to-r from-[#00f0ff] to-amber-400 w-0 transition-all duration-300"></div>
+            </div>
+            <div class="mono text-xs text-slate-300">
+                ស្ថានភាព៖ <span id="cycle-detail" class="text-cyan-300">ជ្រើសរើសផ្នែក តាមដានសៀគ្វី ឬដំណើរការខ្សែសង្វាក់ពេញលេញ</span>
+            </div>
+        </div>
+
+        <!-- Right Multi-Tab Sidebar: Mechanical BOM, Electrical BOM, Wiring Table, Manual -->
+        <div class="cad-panel cad-sidebar w-96 md:w-[460px] h-[82vh] rounded-xl flex flex-col interactive mr-1">
+
+            <!-- Sidebar Header & Tab Buttons -->
+            <div class="p-3.5 border-b border-[#00f0ff]/30 bg-black/45 rounded-t-xl">
+                <div class="flex justify-between items-center mb-2.5">
+                    <h2 class="text-sm font-bold text-white flex items-center gap-2 font-orbitron">
+                        <svg class="w-4 h-4 text-[#00f0ff] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+                        ឯកសារយោងវិស្វកម្មគោល
+                    </h2>
+                    <span class="mono text-xs text-[#00f0ff] bg-[#00f0ff]/10 px-2.5 py-0.5 rounded border border-[#00f0ff]/30">កំណែ D</span>
+                </div>
+
+                <div class="flex gap-1 overflow-x-auto pb-1">
+                    <button onclick="switchTab('mech')" id="tab-mech" class="tab-btn active">១. ផ្នែកមេកានិច</button>
+                    <button onclick="switchTab('elec')" id="tab-elec" class="tab-btn">២. ផ្នែកអគ្គិសនី</button>
+                    <button onclick="switchTab('wire')" id="tab-wire" class="tab-btn">៣. តារាងតភ្ជាប់ខ្សែ</button>
+                    <button onclick="switchTab('sop')" id="tab-sop" class="tab-btn">៤. នីតិវិធី និងរូបមន្ត</button>
+                    <button onclick="switchTab('sim')" id="tab-sim" class="tab-btn text-[#10b981] font-bold">៥. ⚡ កម្មវិធីសាកល្បង</button>
+                </div>
+            </div>
+
+            <!-- Tab Content Container -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-2.5" id="tab-content-area">
+                <!-- Dynamically populated based on active tab -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Embedded Master Engine (3D Engine, CAD Geometries, Wire Harnesses, Manuals in Khmer) -->
+    <script>
+
+        /* =========================================================================
+           ផ្នែកទិន្នន័យទី ១៖ លក្ខណៈបច្ចេកទេសផ្នែកមេកានិច និងមគ្គុទ្ទេសក៍ផលិត
+           ========================================================================= */
+        const MECHANICAL_SUBSYSTEMS = [
+            {
+                id: "hopper",
+                num: "ម៉ូឌុល ០១ (MODULE 01)",
+                name: "ឡាវបញ្ចូលជីវម៉ាស និងសន្ទះទ្វាររុញដោយដៃ",
+                short: "បន្ទះដែកអ៊ីណុក SS304 កម្រាស់ 2.0mm ជម្រាល 60° ការពារការស្ទះ និងសន្ទះបិទជិតមិនឱ្យខ្យល់ចូល។",
+                material: "បន្ទះដែកអ៊ីណុក SS304 (កម្រាស់ 2.0 mm)",
+                dims: "មាត់លើ៖ 240 × 240 mm, កម្ពស់៖ 180 mm, កបង្ហូរចេញ៖ Ø 76.2 mm",
+                tools: "ម៉ូទ័រកាត់ដែកជាមួយផ្លែកាត់អ៊ីណុក 1.0mm, ម៉ាស៊ីនផ្សារ TIG (ER308L), ផ្លែខាត់ 80-grit, ម៉ាស៊ីនស្វាន",
+                source: "ហាងលក់ដែកតាមបណ្តោយផ្លូវជាតិលេខ ៦ ក្រុងសៀមរាប",
+                desc: "ឡាវបញ្ចូលជីវម៉ាសតាមទំនាញផែនដី ដែលរចនាឡើងជាមួយជញ្ជាំងទេរមុំ 60°។ ជម្រាលទាបជាង (<50°) ធ្វើឱ្យជីវម៉ាសសរសៃដូចជា អង្កាម ត្រឡោកដូងឈូស និងកម្ទេចឈើ (អាចម៍រណារ) ទើរស្ទះមិនធ្លាក់ចុះ។ មានបំពាក់សន្ទះទ្វាររុញបិទបើកដោយដៃនៅផ្នែកកខាងក្រោម ដើម្បីទប់ខ្យល់កុំឱ្យចូលក្នុងឡដុត។",
+                steps: [
+                    "<strong>ជំហានទី ១ (ការគូសពុម្ព និងកាត់ដែក)៖</strong> គូសបន្ទះរាងចតុកោណព្នាយស្មើគ្នាចំនួន ៤ លើបន្ទះដែកអ៊ីណុក SS304 កម្រាស់ 2.0mm៖ ទទឹងលើ = 240mm, ទទឹងក្រោម = 76mm, កម្ពស់ជម្រាល = 190mm (បង្កើតបានមុំទេរ 60° គត់ធៀបនឹងផ្ទៃដេក)។ កាត់តាមបន្ទាត់ដោយប្រើផ្លែកាត់អ៊ីណុក ឬម៉ាស៊ីនកាត់បន្ទះដែក។",
+                    "<strong>ជំហានទី ២ (ការគៀបភ្ជាប់ និងផ្សារ TIG)៖</strong> គៀបបន្ទះទាំង ៤ ចូលគ្នាដោយប្រើដែកឆក់កែង 90° ដើម្បីបង្កើតជារាងពីរ៉ាមីតកាត់ក្បាលផ្កាប់ចុះក្រោម។ ផ្សារភ្ជាប់ (Tack-weld) តាមជ្រុងនីមួយៗរៀងរាល់ប្រវែង 25mm នៅកម្រិតភ្លើង 40A។ បន្ទាប់មកផ្សារភ្ជាប់ពេញជ្រុងខាងក្រៅដោយប្រើលួសផ្សារ ER308L ទំហំ 1.6mm នៅកម្រិតភ្លើង 50–55A ជាមួយឧស្ម័នអាកុង (Argon) សុទ្ធ (7 L/min)។",
+                    "<strong>ជំហានទី ៣ (ការឆាបខាត់ថ្នេរផ្សារខាងក្នុង - សំខាន់បំផុត)៖</strong> បំពាក់ផ្លែខាត់កម្រិត 80-grit លើម៉ូទ័រឆាប។ ឆាបខាត់ថ្នេរផ្សារជ្រុងខាងក្នុងទាំង ៤ ឱ្យរាបស្មើសាច់ដែកទាំងស្រុង។ ផ្ទៃខាងក្នុងត្រូវតែរលោងដូចកញ្ចក់ពេលស្ទាប ព្រោះសូម្បីតែស្នាមពកថ្នេរផ្សារតូចមួយក៏អាចទាក់អង្កាម និងធ្វើឱ្យស្ទះមិនធ្លាក់ចុះដែរ។",
+                    "<strong>ជំហានទី ៤ (ការផលិតសន្ទះទ្វាររុញ Knife Gate)៖</strong> កាត់បន្ទះដែកភ្លាំង (Flange) រាងការ៉េទំហំ 120 × 120mm ចំនួន ២ សន្លឹកពីដែក SS304 កម្រាស់ 6.0mm ដោយចោះរន្ធកណ្តាលទំហំ Ø 76.2mm។ កាត់សន្ទះផ្លែរុញ (ទំហំ 100 × 200mm) ពីដែក SS304 កម្រាស់ 2.0mm ដោយឆាបមុខខាងមុខឱ្យមូល រួចផ្សារដៃទាញដែក M8។ កាត់ទ្រនាប់កៅស៊ូស៊ីលីកូនធន់កំដៅខ្ពស់ចំនួន ២ សន្លឹកឱ្យត្រូវទំហំគ្នា។",
+                    "<strong>ជំហានទី ៥ (ការផ្គុំសន្ទះទ្វាររុញ)៖</strong> ដាក់សន្ទះផ្លែរុញនៅចន្លោះទ្រនាប់កៅស៊ូស៊ីលីកូនទាំងពីរ និងបន្ទះដែក 6mm ខាងក្រៅ។ ចាប់ខ្ចៅក្បាលលិច M6 ចំនួន ៤ គ្រាប់ជាមួយបន្ទះកល់ (Shims)។ សារ៉េភាពតឹងឱ្យផ្លែសន្ទះអាចរុញចេញចូលបានណែនល្អ ដោយមិនមានចន្លោះឱ្យខ្យល់ជ្រាបចូល។",
+                    "<strong>ជំហានទី ៦ (ការផ្សារភ្ជាប់កឡាវ)៖</strong> ផ្សារ TIG ភ្ជាប់កបង្ហូរខាងក្រោមនៃឡាវ ទៅនឹងបន្ទះភ្លាំងខាងលើនៃសន្ទះទ្វាររុញដោយផ្ទាល់។"
+                ],
+                warning: "ត្រូវប្រាកដថាសន្ទះទ្វាររុញបិទជិតមិនឱ្យខ្យល់ចូលមុនពេលបើកកំដៅ។ ការជ្រាបខ្យល់ចូលទៅក្នុងឡាវនឹងធ្វើឱ្យដំណើរការបំបែកកំដៅគ្មានអុកស៊ីសែន (Pyrolysis) ក្លាយជាការឆេះដោយចំហ ដែលបំផ្លាញទិន្នផលធ្យូងជីវម៉ាសឱ្យក្លាយជាផេះពណ៌ស។",
+                focusTarget: { x: 0, y: 48, z: 0 }
+            },
+            {
+                id: "retort",
+                num: "ម៉ូឌុល ០២ (MODULE 02)",
+                name: "បន្ទប់ប្រតិកម្មបំប្លែងកាបូន (ឡដុតបំបែកកំដៅ Retort)",
+                short: "បំពង់ដែកអ៊ីណុកអត់ថ្នេរ SS304 ទំហំ 150mm OD កម្រាស់ 2.8mm ជាមួយភ្លាំងចាប់ខ្ចៅ និងទ្រនាប់ក្រាហ្វីតធន់កំដៅ។",
+                material: "បំពង់ឧស្សាហកម្មដែកអ៊ីណុកអត់ថ្នេរ SS304 (Schedule 10S / Schedule 40)",
+                dims: "អង្កត់ផ្ចិតក្រៅ៖ 150 mm, ប្រវែង៖ 300 mm, កម្រាស់សាច់ដែក៖ 2.77 mm, ចំណុះ៖ ~5.3 L",
+                tools: "ម៉ាស៊ីនកាត់ដែកត្រជាក់ (Cold Saw), ម៉ាស៊ីនក្រឡឹង, ម៉ាស៊ីនផ្សារ TIG ជាមួយប្រព័ន្ធបាញ់ឧស្ម័នអាកុងខាងក្នុង, ម៉ាស៊ីនស្វាន, ផ្លែតារ៉ាវធ្មេញ 1/2-inch NPT",
+                source: "ហាងផ្គត់ផ្គង់បំពង់ឧស្សាហកម្មនៅភ្នំពេញ (មហាវិថីម៉ៅសេទុង) ឬផ្លូវជាតិលេខ ៦ សៀមរាប",
+                desc: "ជាបន្ទប់កំដៅបិទជិត ដែលជីវម៉ាសត្រូវបានបំបែកដោយកំដៅនៅសីតុណ្ហភាព 380–450°C ឱ្យទៅជាទម្រង់កាបូនសុទ្ធដោយគ្មានអុកស៊ីសែន។ បំពាក់ដោយបន្ទះភ្លាំងកាត់ដោយឡេស័រកម្រាស់ 10mm នៅផ្នែកលើ និងក្រោម ដោយចាប់ខ្ចៅជាមួយទ្រនាប់ក្រាហ្វីត (Expanded Graphite) ធន់កំដៅខ្ពស់។",
+                steps: [
+                    "<strong>ជំហានទី ១ (ការកាត់បំពង់ និងក្រឡឹងមុខកាត់)៖</strong> កាត់បំពង់ដែកអ៊ីណុកអត់ថ្នេរ SS304 ទំហំ 150mm OD ប្រវែង 300mm។ ចាប់លើម៉ាស៊ីនក្រឡឹង រួចក្រឡឹងមុខកាត់ចុងទាំងសងខាងឱ្យរាបស្មើ និងកែងល្អ (កម្រិតលម្អៀង < 0.1mm)។",
+                    "<strong>ជំហានទី ២ (ការផលិតបន្ទះភ្លាំង Flange)៖</strong> កាត់ឡេស័របន្ទះដែកអ៊ីណុក SS304 កម្រាស់ 10mm ជារាងកងមូលចំនួន ២ (OD 210mm, ID 150mm)។ ស្វានរន្ធខ្ចៅចំនួន ៨ រន្ធ ទំហំ Ø 8.5mm ឱ្យស្មើគ្នាលើរង្វង់អង្កត់ផ្ចិត 180mm (BCD)។",
+                    "<strong>ជំហានទី ៣ (ការផ្សារ TIG ពីរជាន់ដោយបាញ់ឧស្ម័នអាកុងការពារខាងក្នុង)៖</strong> ស៊កបន្ទះភ្លាំងចូលចុងបំពង់ឱ្យមាត់បំពង់លិចចូល 2mm ពីមុខភ្លាំង។ បិទចុងបំពង់ទាំងសងខាងដោយក្រដាសអាលុយមីញ៉ូម រួចបញ្ចូលទុយោឧស្ម័នអាកុង (Argon) កម្រិត 5 L/min ដើម្បីដេញខ្យល់ចេញពីក្នុងបំពង់ (Back-purging)។ ផ្សារ TIG ជុំវិញកភ្លាំងខាងក្នុង និងខាងក្រៅ។ ការបាញ់អាកុងខាងក្នុងជួយការពារកុំឱ្យថ្នេរផ្សារខាងក្នុងឡើងស្នิมខ្មៅ ឬពុកផុយ។",
+                    "<strong>ជំហានទី ៤ (ការចោះរន្ធបំពង់ឧស្ម័ន និងរន្ធសេនស័រកំដៅ)៖</strong> ចុះក្រោមភ្លាំងលើប្រវែង 50mm ស្វានរន្ធទំហំ 18mm រួចផ្សារ TIG ភ្ជាប់កងធ្មេញញី SS304 ទំហំ 1/2-inch (សម្រាប់បំពង់បញ្ចេញឧស្ម័ន)។ ចុះក្រោមភ្លាំងលើ 100mm នៅម្ខាងទៀត ស្វានរន្ធ 14mm រួចផ្សារបំពង់ដែកអ៊ីណុកបិទមុខទំហំ 1/4-inch លូតចូលទៅចំកណ្តាលបន្ទប់ប្រវែង 75mm (ដើម្បីធ្វើជាស្រោមការពារសេនស័រកំដៅ Thermowell)។",
+                    "<strong>ជំហានទី ៥ (ការដាក់ទ្រនាប់ក្រាហ្វីត និងចាប់ខ្ចៅ)៖</strong> កាត់ទ្រនាប់ពីបន្ទះក្រាហ្វីតសុទ្ធកម្រាស់ 2.0mm (ធន់កំដៅ 650°C)។ ចាប់ភ្ជាប់គម្របលើ និងកោណបង្ហូរខាងក្រោមដោយប្រើខ្ចៅអ៊ីណុក M8 កម្រិត 8.8 ជាមួយកងរ៉ឺស័រ ដោយរឹតតាមលំដាប់ខ្វែងផ្កាយនៅកម្លាំងមួល 18 N·m។"
+                ],
+                warning: "ហាមប្រើដែកធម្មតា ឬបំពង់ស៊ីមាំងមានថ្នេរផ្សារសម្រាប់ធ្វើតួឡដុត។ ចំហាយបំបែកកំដៅមានផ្ទុកអាស៊ីតអាសេទិក និងស្ពាន់ធ័រ ដែលនឹងស៊ីផុយ និងធ្វើឱ្យប្រេះថ្នេរផ្សារដែកធម្មតាយ៉ាងលឿននៅសីតុណ្ហភាព 400°C។",
+                focusTarget: { x: 0, y: 25, z: 0 }
+            },
+            {
+                id: "heaters",
+                num: "ម៉ូឌុល ០៣ (MODULE 03)",
+                name: "ប្រព័ន្ធកងកំដៅសេរ៉ាមិច (Ceramic Band Heaters)",
+                short: "កម្លាំងសរុប 1500W (3× 500W) កងកំដៅសេរ៉ាមិច Steatite តភ្ជាប់ជាខ្នែងជាមួយខ្សែភ្លើងនីកែលធន់កំដៅ។",
+                material: "គ្រាប់សេរ៉ាមិច Steatite ជាមួយខ្សែរបុំកំដៅ Nichrome 80/20",
+                dims: "ចំនួន ៣ កង៖ អង្កត់ផ្ចិតក្នុង Ø 150 mm × ទទឹង 60 mm ក្នុងមួយកង, តំបន់កំដៅសរុប៖ 200 mm",
+                tools: "សោរឹតកម្លាំងមួល 10mm (Torque wrench), ដង្កាប់បកខ្សែភ្លើង, ស្រោមខ្សែភ្លើងសរសៃកែវស៊ីលីកូន",
+                source: "ហាងលក់ឧបករណ៍កំដៅឧស្សាហកម្មនៅភ្នំពេញ ឬបញ្ជាទិញតាមអនឡាញ (Lazada / Taobao)",
+                desc: "ផ្តល់កំដៅអគ្គិសនីស្អាត និងបញ្ជូនកំដៅដោយផ្ទាល់ឆ្លងកាត់ជញ្ជាំងបំពង់ដែកអ៊ីណុកនៃឡដុត។ ត្រូវបានដំឡើងព័ទ្ធជុំវិញផ្នែកខាងក្រោម 2/3 នៃតួឡដុត ដែលជាកន្លែងជីវម៉ាសធ្លាក់មកប្រមូលផ្តុំ។",
+                steps: [
+                    "<strong>ជំហានទី ១ (ការសម្អាតផ្ទៃបំពង់)៖</strong> ជូតសម្អាតផ្ទៃខាងក្រៅនៃបំពង់ឡដុតដែកអ៊ីណុកជាមួយទឹកថ្នាំលាងខ្លាញ់ ឬអាល់កុល ដើម្បីកម្ចាត់ជាតិប្រេង ខ្លាញ់ ឬធូលីដីទាំងអស់មុនពេលបំពាក់កងកំដៅ។",
+                    "<strong>ជំហានទី ២ (ការបំពាក់កងកំដៅ)៖</strong> ស៊កកងកំដៅសេរ៉ាមិចទំហំ 150mm ទាំង ៣ ចូលទៅលើបំពង់ឡដុត។ ទុកចន្លោះឃ្លាតគ្នា 10mm នៅផ្នែកខាងក្រោមប្រវែង 200mm។ មួលវីសរឹតដែកអ៊ីណុកដោយដៃឱ្យស្មើគ្នាទាល់តែណែនល្មម។",
+                    "<strong>ជំហានទី ៣ (ការរឹតកម្លាំងមួល Torque)៖</strong> ប្រើសោរឹតកម្លាំងមួល រឹតវីសគៀបទៅកម្រិត 8 N·m។ គោះជុំវិញកងកំដៅថ្នមៗដោយញញួរឈើដើម្បីបន្ធូរភាពតានតឹង រួចរឹតបន្ថែមម្តងទៀតឱ្យណែន។",
+                    "<strong>ជំហានទី ៤ (ការតភ្ជាប់ខ្សែភ្លើងធន់កំដៅខ្ពស់)៖</strong> តភ្ជាប់កងកំដៅទាំង ៣ ជាខ្នែង (Parallel៖ ភ្ជាប់គោលភ្លើង Live ទាំង ៣ ចូលគ្នា និងគោល Neutral ទាំង ៣ ចូលគ្នា) ដោយប្រើខ្សែភ្លើងនីកែលសុទ្ធទំហំ 14 AWG ដែលស្រោបដោយទុយោសរសៃកែវស៊ីលីកូនពីរជាន់ (ធន់កំដៅ 500°C)។ អូសខ្សែភ្លើងចូលទៅកាន់ដុំតំណសេរ៉ាមិច (Ceramic Terminal Block) ដែលចាប់នៅផ្នែកខាងក្រោមឆ្ងាយពីកំដៅផ្ទាល់។",
+                    "<strong>ជំហានទី ៥ (ការរឹតបន្ថែមពេលក្តៅ - សំខាន់)៖</strong> បើកភ្លើងឱ្យកងកំដៅឡើងដល់ 180°C ក្នុងការសាកល្បងដំបូង។ បិទភ្លើង រួចរឹតវីសគៀបកងកំដៅបន្ថែមភ្លាមៗខណៈពេលកំពុងក្តៅ។ នៅពេលបំពង់អ៊ីណុករីកមាឌដោយសារកំដៅ កងគៀបនឹងធូរ ដូច្នេះការរឹតបន្ថែមពេលក្តៅជួយបំបាត់ចន្លោះខ្យល់ដែលធ្វើឱ្យដាច់ខ្សែកំដៅ។"
+                ],
+                warning: "កងកំដៅដែលរឹតមិនណែននឹងបង្កើតពពុះខ្យល់រាំងស្ទះកំដៅរវាងកងកំដៅ និងបំពង់ដែក ដែលធ្វើឱ្យខ្សែរបុំកំដៅឡើងក្តៅដល់ 800°C ហើយដាច់ខូចក្នុងរយៈពេលតែប៉ុន្មានម៉ោង។ ត្រូវរឹតបន្ថែមជានិច្ចនៅពេលក្តៅឧណ្ហៗ។",
+                focusTarget: { x: 0, y: 25, z: 0 }
+            },
+            {
+                id: "sensor",
+                num: "ម៉ូឌុល ០៤ (MODULE 04)",
+                name: "សេនស័រវាស់កំដៅ K-Type និងប្រព័ន្ធបញ្ជា PID",
+                short: "សេនស័រ K-Type ស្រោម Inconel ភ្ជាប់ជាមួយឧបករណ៍បញ្ជា Omron E5CC (ឬ REX-C100) និងដុំ SSR 40A។",
+                material: "Chromel-Alumel (Type K), ស្រោម Inconel 600, ដុំ FOTEK SSR 40A, ដុំបន្សាបកំដៅអាលុយមីញ៉ូម",
+                dims: "ដងសេនស័រ Ø 4.0 mm × ប្រវែងលូតចូល 150 mm, ដុំបន្សាបកំដៅ 100 × 70 × 50 mm",
+                tools: "ប៊ូតុងកំណត់កម្មវិធី PID, ឧបករណ៍វាស់ភ្លើងឌីជីថល (Multimeter), ម្សៅលាបបន្សាបកំដៅ (Thermal paste)",
+                source: "ហាងលក់គ្រឿងបន្លាស់ម៉ាស៊ីនត្រជាក់ និងស្វ័យប្រវត្តិកម្ម (ភ្នំពេញ / សៀមរាប)",
+                desc: "វាស់សីតុណ្ហភាពស្នូលកណ្តាលនៃឡដុត។ ជីវម៉ាសគឺជាអ៊ីសូឡង់ទប់កំដៅធម្មជាតិ ដូច្នេះសីតុណ្ហភាពជញ្ជាំងខាងក្រៅអាចឡើងដល់ 420°C ខណៈដែលជីវម៉ាសនៅចំកណ្តាលទើបតែឡើងដល់ 200°C ប៉ុណ្ណោះ។ ការដាក់សេនស័រនៅចំកណ្តាលជួយធានាការគ្រប់គ្រងកំដៅបំបែកកាបូនបានត្រឹមត្រូវបំផុត។",
+                steps: [
+                    "<strong>ជំហានទី ១ (ការដំឡើងស្រោមសេនស័រ Thermowell)៖</strong> ផ្សារ TIG បំពង់ដែកអ៊ីណុកបិទមុខទំហំ 1/4\" ចូលទៅក្នុងជញ្ជាំងចំហៀងនៃឡដុត ដោយឱ្យលូតចូលទៅខាងក្នុងប្រវែង 75mm (ចំកណ្តាលបន្ទប់ឡដុត)។",
+                    "<strong>ជំហានទី ២ (ការស៊កសេនស័រវាស់កំដៅ)៖</strong> លាបម្សៅចម្លងកំដៅធន់សីតុណ្ហភាពខ្ពស់នៅចុងសេនស័រ K-type រួចស៊កចូលទៅក្នុងបំពង់ Thermowell ទាល់តែទល់បាតខាងក្នុង។ រឹតភ្ជាប់ដោយក្បាលខ្ចៅគៀបស្ពាន់ 1/4\"។",
+                    "<strong>ជំហានទី ៣ (ការដំឡើងដុំ SSR និងដុំបន្សាបកំដៅ)៖</strong> ចាប់ភ្ជាប់ដុំ Solid State Relay (SSR) 40A ទៅលើដុំបន្សាបកំដៅអាលុយមីញ៉ូមមានព្រុយ (យ៉ាងតិច 100×70×50mm) ដោយលាបម្សៅបន្សាបកំដៅ។ តភ្ជាប់ជើងចេញរបស់ SSR ជាស៊េរីជាមួយខ្សែភ្លើង 220V AC Live ដែលរត់ទៅកាន់កងកំដៅ។",
+                    "<strong>ជំហានទី ៤ (ការកំណត់ Autotuning លើកុងត្រូល័រ PID)៖</strong> ភ្ជាប់ខ្សែសេនស័រកំដៅ (ខ្សែលឿង = បូក, ខ្សែក្រហម/ស = ដក) ទៅកាន់ជើងបញ្ចូលនៃកុងត្រូល័រ Omron E5CC PID។ ដាក់ជីវម៉ាសចូលក្នុងឡដុត កំណត់សីតុណ្ហភាពគោលដៅទៅ 387°C រួចបើកមុខងារ Autotune (AT) ដើម្បីឱ្យម៉ាស៊ីនគណនាតម្លៃ P, I និង D ដ៏ល្អបំផុតដោយស្វ័យប្រវត្តិ។"
+                ],
+                warning: "ហាមប្រើដុំ SSR ដោយគ្មានដុំបន្សាបកំដៅអាលុយមីញ៉ូមជាដាច់ខាត។ នៅក្រោមបន្ទុកចរន្ត 6.8A ដុំ SSR ដែលគ្មានប្រព័ន្ធបន្សាបកំដៅនឹងឡើងក្តៅខ្លាំង ឆ្លងភ្លើងខាងក្នុង ហើយជាប់ភ្លើងរហូត (Latch ON) ដែលធ្វើឱ្យឡដុតឡើងកំដៅហួសកម្រិតលើសពី 600°C។",
+                focusTarget: { x: 6, y: 20, z: 0 }
+            },
+            {
+                id: "insulation",
+                num: "ម៉ូឌុល ០៥ (MODULE 05)",
+                name: "អាវអ៊ីសូឡង់ទប់កំដៅ (Thermal Insulation Jacket)",
+                short: "សំឡីសេរ៉ាមិចទប់កំដៅកម្រាស់ 25mm (128 kg/m³) ស្រោបដោយសំបកអាលុយមីញ៉ូមកម្រាស់ 1.2mm ពីខាងក្រៅ។",
+                material: "សំឡីសរសៃសេរ៉ាមិច Alumino-Silicate (កំហាប់ 128 kg/m³), បន្ទះអាលុយមីញ៉ូមកម្រាស់ 1.2 mm",
+                dims: "កម្រាស់សំឡីអ៊ីសូឡង់ 25 mm, សំបកក្រៅ៖ Ø 210 mm × 320 mm",
+                tools: "កាំបិតកាត់, លួសចងអ៊ីណុក (0.8mm), ម៉ាស៊ីនកិនមូលបន្ទះដែក, គន្លឹះកឹប (Toggle Latches), ដង្កាប់បាញ់រីវេ",
+                source: "ហាងផ្គត់ផ្គង់សម្ភារៈឡឥដ្ឋ ឬជួសជុលឡចំហាយ (ភ្នំពេញ / សៀមរាប)",
+                desc: "រក្សាកំដៅ 90% ឱ្យនៅខាងក្នុងឡដុត កាត់បន្ថយការប្រើប្រាស់ថាមពលអគ្គិសនីជាងពាក់កណ្តាល និងធានាថាផ្ទៃខាងក្រៅរបស់ម៉ាស៊ីនមានសុវត្ថិភាពអាចប៉ះបាន (<48°C) ក្នុងអំឡុងពេលសិស្សធ្វើបទបង្ហាញ។",
+                steps: [
+                    "<strong>ជំហានទី ១ (ឧបករណ៍ការពារសុវត្ថិភាព)៖</strong> ពាក់ម៉ាស់ការពារធូលី N95 វ៉ែនតាការពារភ្នែក និងស្រោមដៃមុនពេលកាន់សំឡីសរសៃសេរ៉ាមិច។",
+                    "<strong>ជំហានទី ២ (ការរុំសំឡីអ៊ីសូឡង់)៖</strong> កាត់បន្ទះសំឡីសេរ៉ាមិចកម្រាស់ 25mm ទំហំ 680mm × 300mm ដោយប្រើកាំបិតមុត។ រុំវាឱ្យណែនជុំវិញកងកំដៅ។ ចងរឹតឱ្យជាប់ដោយប្រើលួសអ៊ីណុកទំហំ 0.8mm រៀងរាល់ប្រវែង 50mm។",
+                    "<strong>ជំហានទី ៣ (ការមូលសំបកអាលុយមីញ៉ូមខាងក្រៅ)៖</strong> កាត់បន្ទះអាលុយមីញ៉ូមកម្រាស់ 1.2mm (ទំហំ 690mm × 320mm)។ កិនមូលវាឱ្យទៅជារាងស៊ីឡាំងដោយប្រើម៉ាស៊ីនកិនបន្ទះដែក ឬពត់ជុំវិញបំពង់ធំមួយ។",
+                    "<strong>ជំហានទី ៤ (ការបំពាក់សំបកការពារ)៖</strong> សวมសំបកអាលុយមីញ៉ូមពីលើស្រទាប់សំឡីអ៊ីសូឡង់។ បាញ់រីវេចាប់គន្លឹះកឹបអ៊ីណុក (Toggle draw-latches) ចំនួន ២ ដើម្បីកឹបសំបកឱ្យជិតល្អ និងអាចដោះចេញបានយ៉ាងរហ័សនៅពេលត្រូវពិនិត្យកងកំដៅ។"
+                ],
+                warning: "ហាមប្រើសំឡីកែវពណ៌លឿងធម្មតាសម្រាប់ដំបូលផ្ទះ ឬសំឡីថ្ម (Rockwool) ដែលមានលាយជ័រស្អិតសរីរាង្គ ព្រោះជ័ររបស់វានឹងឆេះហុយផ្សែង និងបញ្ចេញឧស្ម័នពុល Formaldehyde នៅពេលសីតុណ្ហភាពឡើងលើសពី 200°C។",
+                focusTarget: { x: 0, y: 25, z: 0 }
+            },
+            {
+                id: "exhaust",
+                num: "ម៉ូឌុល ០៦ (MODULE 06)",
+                name: "បំពង់បញ្ចេញឧស្ម័ន របុំទង់ដែងបញ្ចុះកំដៅ និងដបទឹកចម្រោះឧស្ម័ន",
+                short: "បំពង់អ៊ីណុក 1/2\" ភ្ជាប់ទៅរបុំបំពង់ទង់ដែងក្នុងធុងទឹកត្រជាក់ ដើម្បីបម្លែងផ្សែងឱ្យទៅជាទឹកខ្មេះឈើ (Wood Vinegar)។",
+                material: "បំពង់ SS304 ទំហំ 1/2\" (កម្រាស់ 1.5mm), បំពង់ទង់ដែងទន់សម្រាប់ម៉ាស៊ីនត្រជាក់ទំហំ 3/8\", កែវថ្មចំណុះ 1L",
+                dims: "របុំទង់ដែងប្រវែង 2.5 m (មូល ១០ ជុំ អង្កត់ផ្ចិត Ø 70 mm) នៅក្នុងធុងទឹកត្រជាក់ចំណុះ ៥ លីត្រ",
+                tools: "ឧបករណ៍ពត់បំពង់, ឧបករណ៍រីកមាត់បំពង់, ធូបផ្សារប្រាក់ / ក្បាលតំណស្ពាន់",
+                source: "ហាងលក់គ្រឿងបន្លាស់ម៉ាស៊ីនត្រជាក់ និងទូទឹកកក (តំបន់ផ្សារសាមគ្គី ក្រុងសៀមរាប)",
+                desc: "បង្ហូរឧស្ម័នងាយហើរដែលភាយចេញពីឈើ (ចំហាយទឹក អាស៊ីតអាសេទិក ជ័រប្រេងជីវម៉ាស ឧស្ម័នមេតាន និងកាបូនម៉ូណូអុកស៊ីត) ចេញពីឡដុត។ របុំបំពង់ទង់ដែងត្រជាក់ជួយបញ្ចុះកំដៅផ្សែងឱ្យក្លាយជាដំណក់ទឹកខ្មេះឈើពណ៌លឿងទុំថ្លា និងបញ្ចេញឧស្ម័នឆេះ (Syngas) ដែលនៅសល់។",
+                steps: [
+                    "<strong>ជំហានទី ១ (ការតបំពង់បញ្ចេញឧស្ម័ន)៖</strong> ផ្សារ TIG បំពង់ដែកអ៊ីណុក SS304 ទំហំ 1/2\" ទៅនឹងរន្ធចេញផ្នែកខាងលើនៃឡដុត។ ដាក់បំពង់ឱ្យទេរចុះក្រោមយ៉ាងតិចមុំ 5° ឆ្ពោះទៅរកធុងបញ្ចុះកំដៅ ដើម្បីកុំឱ្យជ័រឈើដែលកកហូរត្រឡប់ចូលទៅក្នុងធ្យូងក្តៅវិញ។",
+                    "<strong>ជំហានទី ២ (ការមូលរបុំបំពង់ទង់ដែង)៖</strong> ចាក់ខ្សាច់ស្ងួតម៉ដ្ឋចូលទៅក្នុងបំពង់ទង់ដែងទន់ទំហំ 3/8\" ប្រវែង 2.5 ម៉ែត្រឱ្យពេញ (ដើម្បីការពារកុំឱ្យបំពង់កំពិតពេលពត់)។ មូលព័ទ្ធជុំវិញបំពង់ទំហំ 70mm ឱ្យបាន ១០ ជុំស្អាត។ បន្ទាប់មកលាងបាញ់ខ្សាច់ចេញឱ្យអស់ដោយទឹក និងខ្យល់។",
+                    "<strong>ជំហានទី ៣ (ការផ្គុំធុងទឹកបញ្ចុះកំដៅ)៖</strong> ដាក់របុំទង់ដែងចូលទៅក្នុងធុងជ័រក្រាស់ ឬធុងអ៊ីណុកចំណុះ ៥ លីត្រ។ តទុយោទឹកត្រជាក់ចូលនៅផ្នែកខាងក្រោម និងទុយោទឹកហូរចេញនៅផ្នែកខាងលើ ដើម្បីឱ្យទឹកត្រជាក់ហូរវិលបញ្ច្រាសទិសឧស្ម័ន។",
+                    "<strong>ជំហានទី ៤ (កែវត្រងទឹកខ្មេះឈើ និងដបទឹកការពារអណ្តាតភ្លើង)៖</strong> ចោះរន្ធពីរនៅលើគម្របដែកនៃកែវថ្មចំណុះ ១ លីត្រ។ តចុងរបុំទង់ដែងចូលទៅក្នុងកែវ។ តទុយោទីពីរពីផ្នែកខាងលើនៃកែវ ទៅជ្រមុជក្នុងដបទឹក (Water Bubbler) ដែលដើរតួជាឧបករណ៍ចម្រោះ និងការពារកុំឱ្យអណ្តាតភ្លើងឆេះបកក្រោយចូលក្នុងឡដុត។"
+                ],
+                warning: "បំពង់បញ្ចេញឧស្ម័នមិនត្រូវតូចជាងទំហំ 1/2\" (12.7mm ID) ឡើយ។ ជ័រឈើខាប់ៗអាចកកស្ទះក្នុងបំពង់តូចៗទំហំ 6mm ឬ 8mm ដែលបង្កឱ្យមានការកើនឡើងសម្ពាធយ៉ាងគ្រោះថ្នាក់នៅក្នុងឡដុត។",
+                focusTarget: { x: 18, y: 38, z: 0 }
+            },
+            {
+                id: "crusher",
+                num: "ម៉ូឌុល ០៧ (MODULE 07)",
+                name: "ម៉ាស៊ីនកិនបំបែកធ្យូងប្រភេទរ៉ូឡូពីរ (Dual-Roller Crusher)",
+                short: "ដងឆកោណពីរវិលបញ្ច្រាសទិសគ្នា បំពាក់ផ្លែធ្មេញកាត់ឡេស័រប្រទាក់គ្នា និងម៉ូទ័រឌឺម៉ារ័រ 24V កម្លាំង 15 Nm។",
+                material: "ដែកថែបរឹងកាត់ដោយឡេស័រកម្រាស់ 4mm (ឬបន្ទះដែក AR400), ដងដែកឆកោណទំហំ 15mm",
+                dims: "ដងដែកឆកោណ 15 mm ចំនួនពីរ (ប្រវែង 200 mm), ផ្លែកាត់រាងផ្កាយចំនួន ១៦ សន្លឹក (Ø 60 mm)",
+                tools: "ម៉ាស៊ីនស្វាន, ដែកឆាបឆកោណ, គូស្ពឺ 1:1, ម៉ូទ័រឌឺម៉ារ័រ 24V DC (30 RPM)",
+                source: "ហាងលក់គ្រឿងបន្លាស់ម៉ូតូ និងជួសជុលគ្រឿងយន្ត តំបន់ផ្សារលើធំថ្មី ក្រុងសៀមរាប",
+                desc: "ដុំធ្យូងជីវម៉ាសដែលទើបដុតរួច (ទំហំ 5–25mm) មានសភាពគ្រើម និងផុយពេកមិនអាចសង្កត់ភ្ជាប់គ្នាជាដុំធ្យូងអនាម័យរឹងមាំបានទេ។ ផ្លែធ្មេញប្រទាក់គ្នាដែលវិលបញ្ច្រាសទិសគ្នាទាំងពីរ នឹងកិនបំបែកដុំធ្យូងឱ្យទៅជាម្សៅម៉ដ្ឋស្មើគ្នា (<1.5mm) ដោយមិនបង្កើតធូលីហុយខ្លាំងក្នុងខ្យល់។",
+                steps: [
+                    "<strong>ជំហានទី ១ (ការកាត់ឡេស័រផ្លែកាត់)៖</strong> កាត់ឡេស័រផ្លែកាត់រាងផ្កាយចំនួន ១៦ សន្លឹក (អង្កត់ផ្ចិត Ø 60mm មានធ្មេញស្រួច ៦ និងរន្ធកណ្តាលរាងឆកោណទំហំ 15mm) ពីបន្ទះដែកថែបរឹងកម្រាស់ 4mm។",
+                    "<strong>ជំហានទី ២ (ការផ្គុំផ្លែកាត់លើដងឆកោណ)៖</strong> ស៊កផ្លែកាត់ ៨ សន្លឹកទៅលើដង A និង ៨ សន្លឹកទៅលើដង B។ ខណ្ឌផ្លែនីមួយៗដោយកងទ្រនាប់ (Spacer washer) កម្រាស់ 4mm ដើម្បីឱ្យផ្លែកាត់លើដង A វិលឆ្លងកាត់ចន្លោះផ្លែលើដង B ដោយមានគម្លាត 0.5mm។",
+                    "<strong>ជំហានទី ៣ (ការធ្វើប្រអប់ម៉ាស៊ីនកិន និងបាដាង)៖</strong> ផ្សារប្រអប់ដែកអ៊ីណុក SS304 រាងចតុកោណទំហំ 160×120×100mm។ បញ្ចូលបាដាងមានគម្របការពារធូលីចំនួន ៤ គ្រាប់ (UCFL202 ឬ 6002-2RS) ទៅនឹងបន្ទះចំហៀងទាំងសងខាងដើម្បីទ្រដងវិល។",
+                    "<strong>ជំហានទី ៤ (ការបំពាក់ស្ពឺ និងភ្ជាប់ម៉ូទ័រ)៖</strong> ស៊កស្ពឺដែកសមាមាត្រ 1:1 ចំនួនពីរទៅលើចុងដងខាងក្រោយ ដើម្បីឱ្យដងទាំងពីរវិលបញ្ច្រាសទិសគ្នា (ទាញចូលកណ្តាល)។ ភ្ជាប់ដងមួយទៅនឹងម៉ូទ័រឌឺម៉ារ័រ 24V DC (ល្បឿន 30 RPM, កម្លាំងមួល 15 N·m) តាមរយៈដុំតំណកៅស៊ូបត់បែន (Spider jaw coupling)។"
+                ],
+                warning: "ហាមកិនធ្យូងជីវម៉ាសដែលកំពុងក្តៅៗទើបយកចេញពីឡដុតជាដាច់ខាត។ ធ្យូងជីវម៉ាសនៅសីតុណ្ហភាព 150°C នៅពេលប៉ះនឹងអុកស៊ីសែនហើយត្រូវកិនជាម្សៅម៉ដ្ឋ អាចឆាបឆេះជាអណ្តាតភ្លើងភ្លាមៗ។ ត្រូវរង់ចាំរហូតដល់ធ្យូងចុះត្រជាក់ក្រោម 40°C សិន។",
+                focusTarget: { x: 0, y: 4, z: 0 }
+            },
+            {
+                id: "mixer",
+                num: "ម៉ូឌុល ០៨ (MODULE 08)",
+                name: "ធុងលាយម្សៅធ្យូងជាមួយកាវម្សៅមី (Paddle Mixer)",
+                short: "ស្នូកលាយរាងអក្សរ U ជាមួយស្លាបកូរមុំ 45° និងរន្ធបង្ហូរកាវម្សៅមីឆ្អិន។",
+                material: "បន្ទះដែកអ៊ីណុក SS304 (កម្រាស់ 1.5 mm), ដងកណ្តាលអ៊ីណុក Ø 16 mm, ស្លាបកូរកម្រាស់ 3mm",
+                dims: "ស្នូកលាយ៖ ទទឹង 140 mm × បណ្តោយ 180 mm × ជម្រៅ 120 mm, ម៉ូទ័រ៖ 24V DC 60 RPM 8 N·m",
+                tools: "ម៉ាស៊ីនពត់បន្ទះដែក, ម៉ាស៊ីនផ្សារ TIG, ម៉ាស៊ីនក្រឡឹង, ម៉ូទ័រ 24V DC (60 RPM, 8 N·m)",
+                source: "រោងជាងផ្សារក្រឡឹងកសិកម្មក្នុងក្រុងសៀមរាប",
+                desc: "លាយច្របល់ម្សៅធ្យូងជីវម៉ាសម៉ដ្ឋជាមួយនឹងកាវម្សៅមីក្តៅឧណ្ហៗ។ បង្កើតបានជាល្បាយស្មើសាច់ល្អ ដែលគ្រាប់ធ្យូងនីមួយៗត្រូវបានស្រោបដោយកាវម្សៅធម្មជាតិ។",
+                steps: [
+                    "<strong>ជំហានទី ១ (ការពត់ស្នូកលាយរាងអក្សរ U)៖</strong> ពត់បន្ទះដែកអ៊ីណុក SS304 កម្រាស់ 1.5mm ឱ្យទៅជាស្នូកពាក់កណ្តាលរង្វង់រាងអក្សរ U ដែលមានកាំ 70mm និងប្រវែង 180mm។ ផ្សារ TIG បិទបន្ទះដែករាបស្មើនៅចុងទាំងសងខាង។",
+                    "<strong>ជំហានទី ២ (ការផលិតដងវិល និងស្លាបកូរ)៖</strong> ក្រឡឹងដងដែកអ៊ីណុកទំហំ Ø 16mm ប្រវែង 220mm។ កាត់ស្លាបកូរចំនួន ៨ សន្លឹក (ទំហំ 35×20mm, កម្រាស់ 3mm) ពីដែកអ៊ីណុកសំប៉ែត។ ផ្សារភ្ជាប់ស្លាបកូរតាមមុំ 45 ដឺក្រេឆ្លាស់គ្នាជារាងវង់ស្ពីរ៉ាល់តាមបណ្តោយដង ដើម្បីរុញល្បាយទៅមុខ និងបកក្រោយឱ្យសព្វល្អ។",
+                    "<strong>ជំហានទី ៣ (ការដំឡើងបាដាងទ្រដង)៖</strong> ចាប់បាដាង (KP002) ចំនួនពីរនៅលើជើងទម្រខាងក្រៅស្នូក ដោយមានទ្រនាប់កៅស៊ូ Teflon ការពារកុំឱ្យម្សៅធ្យូងជ្រាបចូលក្នុងបាដាង។",
+                    "<strong>ជំហានទី ៤ (រន្ធបញ្ចូលកាវម្សៅមី)៖</strong> ចោះរន្ធទំហំ 1/4\" នៅលើគម្របស្នូកខាងលើ រួចបំពាក់ក្បាលតំណស្ពាន់សម្រាប់ចាក់បញ្ចូលកាវម្សៅមីក្តៅឧណ្ហៗតាមរយៈជីវឡាវ ឬដបច្របាច់វាស់កម្រិត។"
+                ],
+                warning: "សមាមាត្រនៃការលាយត្រូវតែរក្សាសំណើមសរុបឱ្យនៅចន្លោះ 22%–25% យ៉ាងម៉ឺងម៉ាត់។ ប្រសិនបើល្បាយស្ងួតពេក (<18%) វានឹងធ្វើឱ្យគាំងម៉ាស៊ីនសង្កត់វីស តែបើសើមជោកពេក (>30%) ដុំធ្យូងនឹងទ្រុឌខូចទ្រង់ទ្រាយ និងប្រេះបែកនៅពេលហាលសម្ងួត។",
+                focusTarget: { x: 0, y: -8, z: 0 }
+            },
+            {
+                id: "press",
+                num: "ម៉ូឌុល ០៩ (MODULE 09)",
+                name: "ម៉ាស៊ីនសង្កត់វីសស្ពីរ៉ាល់ និងក្បាលពុម្ពធ្យូង (Extrusion Screw Press)",
+                short: "វីសស្ពីរ៉ាល់រួមជំហាន (Progressive pitch auger) បំពាក់បាដាងទប់កម្លាំងរុញ SKF 51105 និងក្បាលពុម្ពទំហំ 38mm។",
+                material: "ដែកថែបកាបូនមធ្យម AISI 1045 (វីសស្ពីរ៉ាល់), ដែកថែបរឹងសម្រាប់ក្បាលពុម្ព, បាដាងទប់កម្លាំងរុញ SKF 51105",
+                dims: "វីសស្ពីរ៉ាល់៖ Ø 48 mm OD × ប្រវែង 240 mm ក្នុងបំពង់អត់ថ្នេរ Ø 50 mm; ក្បាលពុម្ពចេញ៖ Ø 38 mm",
+                tools: "ម៉ាស៊ីនក្រឡឹងដែកមានប្រអប់លេខកាត់ធ្មេញវីស, ម៉ាស៊ីនហ្វ្រេស (Milling), ធូបផ្សារបន្ថែមភាពរឹង (Hard-facing Rod)",
+                source: "រោងជាងជួសជុលម៉ាស៊ីនកិនស្រូវ និងគ្រឿងយន្តកសិកម្មក្នុងក្រុងសៀមរាប",
+                desc: "សង្កត់បង្ហាប់ល្បាយម្សៅធ្យូង និងកាវម្សៅមីក្រោមកម្លាំងមួលខ្ពស់ជាប់លាប់ ដោយរុញឆ្លងកាត់ក្បាលពុម្ពរាងកោណ ដើម្បីបញ្ចេញជាដុំធ្យូងជីវម៉ាសរាងស៊ីឡាំងហាប់ណែនល្អ ដែលមានរន្ធខ្យល់នៅចំកណ្តាល។",
+                steps: [
+                    "<strong>ជំហានទី ១ (ការក្រឡឹងដងវីសស្ពីរ៉ាល់ Auger)៖</strong> ក្រឡឹងដុំដែកថែបតាន់ AISI 1045 ទំហំ Ø 50mm នៅលើម៉ាស៊ីនក្រឡឹង។ កាត់ស្លាបស្ពីរ៉ាល់ជាប់គ្នាឱ្យមានអង្កត់ផ្ចិតក្រៅ 48mm។ បន្ថយជំហានស្លាបវីស (Pitch) ជាលំដាប់ពី 35mm នៅកន្លែងទទួលម្សៅ ចុះមកត្រឹម 16mm នៅចុងវីស (បង្កើតបានផលធៀបបង្ហាប់មាឌ 2.8:1)។",
+                    "<strong>ជំហានទី ២ (ការផ្សារបន្ថែមភាពរឹងលើគែមស្លាបវីស)៖</strong> ម្សៅធ្យូងជីវម៉ាសមានភាពសឹករិចរិលខ្ពស់។ ផ្សារស្រោបគែមខាងមុខនៃស្លាបវីសដោយប្រើធូបផ្សារដែករឹង (E-FeCr-A1) រួចក្រឡឹងឆាបឱ្យរលោងមកទំហំ 48mm OD វិញ។",
+                    "<strong>ជំហានទី ៣ (ការដំឡើងបាដាងទប់កម្លាំងរុញ - សំខាន់បំផុត)៖</strong> ក្រឡឹងរន្ធដាក់បាដាងនៅលើបន្ទះដែកខាងក្រោយ។ ដាក់បញ្ចូល <strong>បាដាងគ្រាប់ឃ្លីទប់កម្លាំងរុញតាមអ័ក្ស SKF 51105 (Grooved Thrust Ball Bearing)</strong> នៅពីក្រោយស្មាដងវីសដោយផ្ទាល់។ បាដាងធម្មតានឹងបែកខ្ទេចភ្លាមៗនៅក្រោមកម្លាំងរុញបកក្រោយ 8 kN។",
+                    "<strong>ជំហានទី ៤ (ការផលិតក្បាលពុម្ព Extrusion Die)៖</strong> ក្រឡឹងក្បាលពុម្ពដែកថែបក្រាស់រាងកោណ ដែលរួមតូចពីទំហំក្នុង 50mm ID ចុះមករន្ធចេញរាងស៊ីឡាំងទំហំ 38mm។ ផ្សារ TIG ចង្កឹះដែកមុខស្រួចទំហំ 8mm នៅចំកណ្តាលមាត់ពុម្ព ដើម្បីបង្កើតរន្ធខ្យល់នៅចំកណ្តាលដុំធ្យូង។",
+                    "<strong>ជំហានទី ៥ (ការភ្ជាប់ម៉ូទ័រអូសទាញ)៖</strong> ភ្ជាប់ទៅនឹងម៉ូទ័រឌឺម៉ារ័រស្ពឺដង្កូវ 24V DC កម្លាំងមួលខ្ពស់ (ឬម៉ូទ័រ AC 0.37 kW ជាមួយប្រអប់លេខ 30:1) ដែលវិលក្នុងល្បឿន 18–22 RPM។"
+                ],
+                warning: "ហាមបើកម៉ាស៊ីនសង្កត់វីសឱ្យវិលទទេដោយគ្មានល្បាយធ្យូងជាដាច់ខាត ព្រោះស្លាបវីសដែកនឹងកកិតឆ្កូតជាមួយជញ្ជាំងបំពង់ខាងក្នុង។ ត្រូវដាក់ល្បាយម្សៅធ្យូងសើមៗមួយក្តាប់ដៃចូលមុនពេលបើកឱ្យវីសវិលជានិច្ច។",
+                focusTarget: { x: 15, y: -18, z: 0 }
+            }
+        ];
+
+        /* =========================================================================
+           ផ្នែកទិន្នន័យទី ២៖ ប្រព័ន្ធអគ្គិសនីខាងក្នុង និងទិន្នន័យគ្រឿងបង្គុំ
+           ========================================================================= */
+        const ELECTRICAL_SUBSYSTEMS = [
+            {
+                id: "smps",
+                tag: "PSU-01",
+                name: "ដុំផ្គត់ផ្គង់ថាមពលមេ 24V DC (Switch-Mode Power Supply)",
+                model: "MeanWell LRS-350-24 (ឬ SE-350-24)",
+                rating: "ភ្លើងចូល៖ 200–240V AC 50Hz, ភ្លើងចេញ៖ 24V DC @ 14.6A (350.4 Watts)",
+                mounting: "ចាប់ភ្ជាប់លើបន្ទះបាតតួម៉ាស៊ីនជាមួយជើងទម្រ M4 ចំនួន ៤ នៅក្នុងទូអគ្គិសនីខាងក្រោម",
+                terminals: [
+                    { pin: "L", func: "ភ្លើងចូល 220V AC Live ពីផ្នែកចេញរបស់ឌីសង់ទ័រ MCB", color: "ពណ៌ត្នោត (Brown)" },
+                    { pin: "N", func: "ភ្លើងចូល 220V AC Neutral ពីរបារចែកចាយ Neutral", color: "ពណ៌ខៀវ (Blue)" },
+                    { pin: "PE", func: "ខ្សែដីសុវត្ថិភាពភ្ជាប់ទៅតួម៉ាស៊ីន (Chassis Earth Ground)", color: "ពណ៌បៃតង/លឿង (Green/Yellow)" },
+                    { pin: "-V (1)", func: "ខ្សែដក DC Ground (0V) ត្រឡប់ទៅដុំតំណរួម", color: "ពណ៌ខ្មៅ (Black)" },
+                    { pin: "-V (2)", func: "ខ្សែដក DC Ground (0V) សម្រាប់ដុំបញ្ជាម៉ូទ័រ (Motor Drivers)", color: "ពណ៌ខ្មៅ (Black)" },
+                    { pin: "-V (3)", func: "ខ្សែដក DC Ground (0V) សម្រាប់បន្ទះមីក្រូកុងត្រូល័រ PLC", color: "ពណ៌ខ្មៅ (Black)" },
+                    { pin: "+V (1)", func: "ខ្សែបូក +24V DC រត់ទៅកាន់ប្រអប់ហ្វុយស៊ីបមេ 15A", color: "ពណ៌ក្រហម (Red)" },
+                    { pin: "+V (2)", func: "ខ្សែបូក +24V DC សម្រាប់បណ្តាញចរន្តខ្ពស់នៃដុំបញ្ជាម៉ូទ័រ", color: "ពណ៌ក្រហម (Red)" },
+                    { pin: "+V (3)", func: "ខ្សែបូក +24V DC សម្រាប់ដុំបំប្លែងភ្លើងចិញ្ចឹមបន្ទះបញ្ជា", color: "ពណ៌ក្រហម (Red)" }
+                ],
+                desc: "ដុំផ្គត់ផ្គង់ថាមពលឧស្សាហកម្មប្រសិទ្ធភាពខ្ពស់ ដែលផ្តល់ចរន្តភ្លើង 24V DC ថេរ និងស្អាតទៅកាន់ម៉ូទ័រទាំងអស់ សន្ទះអគ្គិសនី និងបន្ទះមីក្រូកុងត្រូល័រ។ មានបំពាក់ប្រព័ន្ធការពារការលើសតង់ស្យុង ការលើសទម្ងន់ និងការបិទស្វ័យប្រវត្តិពេលឡើងកំដៅខ្លាំង។",
+                installTips: "ត្រូវទុកចន្លោះយ៉ាងតិច 50mm ជុំវិញរន្ធខ្យល់ត្រជាក់ពីជញ្ជាំងទូខាងក្នុង។ កំណត់វីសសារ៉េតង់ស្យុង V-ADJ ឱ្យនៅកម្រិត 24.10V គត់ដោយប្រើឧបករណ៍វាស់ភ្លើងឌីជីថល មុនពេលភ្ជាប់ទៅកាន់ម៉ូទ័រ។"
+            },
+            {
+                id: "mcb",
+                tag: "CB-01",
+                name: "ឌីសង់ទ័រការពារចរន្តអគ្គិសនី AC ២ ប៉ូល (2-Pole MCB)",
+                model: "Schneider Electric Acti9 iC60N / CHNT NXB-63 (2-Pole, 10A, C-Curve)",
+                rating: "ធន់តង់ស្យុង 400V AC, កម្រិតលោតផ្តាច់ 10 Amp, សមត្ថភាពផ្តាច់ចរន្តឆ្លង 6kA",
+                mounting: "ចាប់ភ្ជាប់លើរបារដែក DIN Rail ទំហំ 35mm នៅចំកណ្តាល (ស្តង់ដារ EN 50022)",
+                terminals: [
+                    { pin: "1 (ផ្នែកលើ L)", func: "ភ្លើងចូល AC Live ពីព្រីភ្លើងមេ IEC C14", color: "ពណ៌ត្នោត (Brown)" },
+                    { pin: "3 (ផ្នែកលើ N)", func: "ភ្លើងចូល AC Neutral ពីព្រីភ្លើងមេ IEC C14", color: "ពណ៌ខៀវ (Blue)" },
+                    { pin: "2 (ផ្នែកក្រោម L)", func: "ភ្លើងចេញ AC Live ទៅកាន់ប៊ូតុង E-Stop និងកងកំដៅ", color: "ពណ៌ត្នោត (Brown)" },
+                    { pin: "4 (ផ្នែកក្រោម N)", func: "ភ្លើងចេញ AC Neutral ទៅកាន់ដុំ SMPS និងកងកំដៅ", color: "ពណ៌ខៀវ (Blue)" }
+                ],
+                desc: "កុងតាក់ការពារ និងផ្តាច់ចរន្តមេសម្រាប់ម៉ាស៊ីនទាំងមូល។ ការផ្តាច់ទាំង ២ ប៉ូលក្នុងពេលតែមួយ ជួយកាត់ផ្តាច់ទាំងខ្សែ Live និងខ្សែ Neutral ភ្លាមៗនៅពេលមានបញ្ហាលើសចរន្ត ឆ្លងភ្លើង (ទុស្សេ) ឬពេលបិទដើម្បីថែទាំជួសជុល។",
+                installTips: "ហាមប្រើឌីសង់ទ័រ ១ ប៉ូលសម្រាប់ម៉ាស៊ីនឧស្សាហកម្ម។ ត្រូវប្រើឌីសង់ទ័រ ២ ប៉ូលជានិច្ច ដើម្បីកុំឱ្យខ្សែ Neutral នៅសល់ចរន្តភ្លើងឆក់ក្នុងពេលមានបញ្ហាឆ្លងចរន្ត។"
+            },
+            {
+                id: "ssr",
+                tag: "SSR-01",
+                name: "ដុំបិទបើកអគ្គិសនីអេឡិចត្រូនិច 40A និងដុំបន្សាបកំដៅ (SSR & Heatsink)",
+                model: "FOTEK SSR-40DA (ឬ Crydom D2450 / Omron G3NA-240B)",
+                rating: "ភ្លើងបញ្ជា៖ 3–32V DC, បន្ទុកភ្លើង៖ 24–380V AC @ 40 Amperes (ញែកដាច់ដោយអុបទិក 4kV)",
+                mounting: "លាបម្សៅបន្សាបកំដៅ រួចចាប់ភ្ជាប់លើដុំអាលុយមីញ៉ូមមានព្រុយ (100×70×50mm)",
+                terminals: [
+                    { pin: "ជើងទី 1 (Terminal 1)", func: "ភ្លើងចូល 220V AC Live ពីសៀគ្វីប៊ូតុង E-Stop", color: "ពណ៌ត្នោត (2.5 mm²)" },
+                    { pin: "ជើងទី 2 (Terminal 2)", func: "ភ្លើងចេញ 220V AC បិទបើកតាមចង្វាក់ទៅកាន់កងកំដៅ", color: "ពណ៌ត្នោត (ស្រោមសរសៃកែវ)" },
+                    { pin: "ជើងទី 3 (+)", func: "សញ្ញាបញ្ជា +12V DC ពីជើងទី 4 របស់កុងត្រូល័រ Omron PID", color: "ពណ៌ស/ទឹកក្រូច (0.5 mm²)" },
+                    { pin: "ជើងទី 4 (-)", func: "ខ្សែដក DC Ground ត្រឡប់ទៅជើងទី 5 របស់ Omron PID", color: "ពណ៌ស/ខៀវ (0.5 mm²)" }
+                ],
+                desc: "កុងតាក់អេឡិចត្រូនិចដែលគ្មានគ្រឿងបង្គុំមេកានិចកម្រើក។ បិទបើកចរន្ត 220V AC ទៅកាន់កងកំដៅ 1500W ក្នុងល្បឿនលឿនដោយស្ងាត់ឈឹង បំបាត់ការបែកផ្កាភ្លើង និងការរំខានរលកអគ្គិសនី។",
+                installTips: "នៅក្រោមបន្ទុកចរន្តជាប់ 6.8A ដុំ SSR បញ្ចេញកំដៅប្រហែល ~12 Watts។ ដុំបន្សាបកំដៅអាលុយមីញ៉ូមត្រូវតែដាក់នៅផ្នែកខាងក្រោមនៃតួម៉ាស៊ីន ឱ្យត្រូវចំផ្លូវខ្យល់បក់របស់កង្ហារបញ្ចុះកំដៅទំហំ 60mm។"
+            },
+            {
+                id: "pid",
+                tag: "TC-01",
+                name: "កុងត្រូល័របញ្ជាសីតុណ្ហភាពឌីជីថល PID (PID Temperature Controller)",
+                model: "Omron E5CC-QX2ASM-800 (ទំហំមុខ 1/16 DIN 48×48mm)",
+                rating: "ភ្លើងចិញ្ចឹម៖ 100–240V AC, ល្បឿនវាស់ស្ទង់៖ 50 ms, ជើងចេញតង់ស្យុងសម្រាប់បញ្ជា SSR",
+                mounting: "បង្កប់លើផ្ទាំងបញ្ជាខាងមុខជាមួយជើងគៀបភ្ជាប់",
+                terminals: [
+                    { pin: "ជើងទី 1-2", func: "ភ្លើងចិញ្ចឹម 220V AC (Live = ជើងទី 1, Neutral = ជើងទី 2)", color: "ពណ៌ត្នោត/ខៀវ (Brown/Blue)" },
+                    { pin: "ជើងទី 4 (+)", func: "សញ្ញាបញ្ជាចេញ 12V DC (+) ទៅកាន់ជើងទី 3 របស់ SSR", color: "ពណ៌ស/ទឹកក្រូច (White/Orange)" },
+                    { pin: "ជើងទី 5 (-)", func: "សញ្ញាបញ្ជាចេញ 12V DC (-) ទៅកាន់ជើងទី 4 របស់ SSR", color: "ពណ៌ស/ខៀវ (White/Blue)" },
+                    { pin: "ជើងទី 11 (+)", func: "ជើងបញ្ចូលសេនស័រកំដៅប៉ូលបូក (Chromel)", color: "ពណ៌លឿង (Yellow)" },
+                    { pin: "ជើងទី 12 (-)", func: "ជើងបញ្ចូលសេនស័រកំដៅប៉ូលដក (Alumel)", color: "ពណ៌ក្រហម (Red)" }
+                ],
+                desc: "ឧបករណ៍បញ្ជាមីក្រូប្រូសេសเซอร์ឧស្សាហកម្មភាពជាក់លាក់ខ្ពស់ ដែលគណនាប្រព័ន្ធ PID ដើម្បីរក្សាសីតុណ្ហភាពស្នូលឡដុតឱ្យនៅថេរត្រឹម 387.0°C ដោយមិនឱ្យឡើងកំដៅហួសកម្រិត។",
+                installTips: "ត្រូវអូសខ្សែសេនស័រកំដៅនៅក្នុងទុយោដែកការពារដែលមានភ្ជាប់ខ្សែដី ហើយដាក់ឱ្យឃ្លាតពីខ្សែភ្លើងម៉ូទ័រ AC យ៉ាងតិច 150mm ដើម្បីការពារការរំខានសញ្ញាអគ្គិសនី។"
+            },
+            {
+                id: "plc",
+                tag: "MCU-01",
+                name: "បន្ទះមីក្រូកុងត្រូល័រឧស្សាហកម្ម PLC / STM32",
+                model: "បន្ទះខួរក្បាល STM32F407 Industrial Core ជាមួយបន្ទះជើងខ្ចៅញែកអុបទិក (Optocoupled Shield)",
+                rating: "ភ្លើងចិញ្ចឹម៖ 24V DC / បំប្លែងចុះ 5V DC, ជើង Digital I/O ចំនួន 16, ជើង Hardware PWM ចំនួន 4",
+                mounting: "ចាប់លើជើងទម្ររបារ DIN rail (ទម្រង់ Phoenix Contact UM-PRO)",
+                terminals: [
+                    { pin: "VCC / GND", func: "ភ្លើងចិញ្ចឹម 24V DC ពីដុំផ្គត់ផ្គង់ថាមពល SMPS", color: "ពណ៌ក្រហម / ខ្មៅ (Red / Black)" },
+                    { pin: "PWM-1 / DIR-1", func: "សញ្ញាបញ្ជាល្បឿន និងទិសដៅម៉ូទ័រកិនធ្យូង", color: "ពណ៌ទឹកក្រូច / ស្វាយ (Orange / Purple)" },
+                    { pin: "PWM-2 / DIR-2", func: "សញ្ញាបញ្ជាល្បឿន និងទិសដៅម៉ូទ័រលាយកាវ", color: "ពណ៌ទឹកក្រូច / ស្វាយ (Orange / Purple)" },
+                    { pin: "PWM-3 / DIR-3", func: "សញ្ញាបញ្ជាល្បឿនម៉ូទ័រសង្កត់វីសស្ពីរ៉ាល់", color: "ពណ៌ទឹកក្រូច / ស្វាយ (Orange / Purple)" },
+                    { pin: "IN-1", func: "ជើងតាមដានស្ថានភាពប៊ូតុងអាសន្ន E-Stop", color: "ពណ៌ស (White)" },
+                    { pin: "IN-2", func: "ជើងកុងតាក់សុវត្ថិភាពសន្ទះទ្វារឡាវបញ្ចូលជីវម៉ាស", color: "ពណ៌ស (White)" },
+                    { pin: "TX / RX", func: "ខ្សែបញ្ជូនទិន្នន័យទៅកាន់អេក្រង់ផ្ទាំងបញ្ជាខាងមុខ", color: "ពណ៌បៃតង / ខៀវ (Green / Blue)" }
+                ],
+                desc: "មជ្ឈមណ្ឌលស្វ័យប្រវត្តិកម្មកណ្តាល ដែលគ្រប់គ្រងលំដាប់ចលនារបស់ម៉ាស៊ីនទាំងមូល។ សម្របសម្រួលល្បឿនម៉ូទ័រ ប្រព័ន្ធសុវត្ថិភាព សន្ទះបញ្ចូលកាវ និងការបិទការពារអាសន្ន។",
+                installTips: "ជើងបញ្ចូលឌីជីថលទាំងអស់ត្រូវឆ្លងកាត់អុបតូគូប្ល័រ (PC817) និងមានឌីយ៉ូតការពារចរន្តបកក្រោយ (Flyback diodes) លើគ្រប់ម៉ូទ័រ ដើម្បីការពារកុំឱ្យមីក្រូកុងត្រូល័រគាំង ឬរលត់ពេលម៉ូទ័រឈប់។"
+            },
+            {
+                id: "drivers",
+                tag: "DRV-01 / 02 / 03",
+                name: "ដុំបញ្ជាម៉ូទ័រចរន្តខ្ពស់ H-Bridge (DC Motor Driver Modules)",
+                model: "ម៉ូឌុល BTS7960 43A High-Current Dual H-Bridge (ចំនួន ៣ គ្រឿង)",
+                rating: "ភ្លើងចូល៖ 6–27V DC, ចរន្តចេញ៖ អតិបរមា 43A (ចរន្តប្រើជាប់ 15A ជាមួយដុំបន្សាបកំដៅ)",
+                mounting: "ចាប់លើជើងទម្រអាលុយមីញ៉ូមលើរបារ DIN rail ក្បែរដុំផ្គត់ផ្គង់ថាមពល",
+                terminals: [
+                    { pin: "B+ / B-", func: "ភ្លើងចូលចរន្តខ្ពស់ 24V DC ពីប្រអប់ហ្វុយស៊ីប", color: "ពណ៌ក្រហម / ខ្មៅ (4.0 mm²)" },
+                    { pin: "M+ / M-", func: "ភ្លើងចេញចរន្តខ្ពស់ទៅកាន់គោលម៉ូទ័រ", color: "ពណ៌ក្រហម / ខ្មៅ (2.5 mm²)" },
+                    { pin: "VCC / GND", func: "ភ្លើងចិញ្ចឹមសៀគ្វីបញ្ជា 5V ពីបន្ទះ MCU", color: "ពណ៌ក្រហម / ខ្មៅ (0.5 mm²)" },
+                    { pin: "RPWM / LPWM", func: "ជើងបញ្ជាល្បឿន PWM ទៅមុខ និងថយក្រោយ", color: "ពណ៌ទឹកក្រូច (0.5 mm²)" },
+                    { pin: "R_EN / L_EN", func: "ជើងបើកដំណើរការសៀគ្វី H-Bridge", color: "ពណ៌ស្វាយ (0.5 mm²)" }
+                ],
+                desc: "គ្រប់គ្រងល្បឿនបង្វិល និងកម្លាំងមួលរបស់ម៉ូទ័រកិនធ្យូង ម៉ូទ័រលាយកាវ និងម៉ូទ័រសង្កត់វីសស្ពីរ៉ាល់ ដោយប្រើបច្ចេកវិទ្យា PWM ប្រេកង់ 20 kHz។",
+                installTips: "វេញខ្សែភ្លើងម៉ូទ័រទាំងពីរចូលគ្នា (៣ ជុំក្នុងមួយអ៊ីញ) ដើម្បីកាត់បន្ថយការភាយរលករំខាន។ បន្ថែមកុងដង់សាទ័រ 1000uF 50V ភ្ជាប់រវាងជើង B+ និង B- ដើម្បីស្រូបចរន្តកញ្ឆក់ពេលម៉ូទ័រចាប់ហ្វ្រាំង។"
+            },
+            {
+                id: "estop",
+                tag: "ES-01",
+                name: "ប៊ូតុងសង្កត់បញ្ឈប់អាសន្នរាងផ្សិត (Emergency Stop Pushbutton)",
+                model: "Schneider Electric Harmony XB4BS542 (ក្បាលរាងផ្សិត Ø 40mm ពណ៌ក្រហម មួលដើម្បីដោះសោ)",
+                rating: "600V AC / 10A, អាយុកាលមេកានិច > 300,000 ដង, កម្រិតការពារទឹក/ធូលី IP66",
+                mounting: "ចោះរន្ធទំហំ 30mm នៅផ្នែកខាងលើស្តាំដៃនៃផ្ទាំងបញ្ជា ជាមួយស្លាករង្វង់ពណ៌លឿង",
+                terminals: [
+                    { pin: "ជើង NC ទី 1", func: "តភ្ជាប់ជាស៊េរីផ្ទាល់ជាមួយខ្សែភ្លើងមេ 220V AC Live", color: "ពណ៌ត្នោត (2.5 mm²)" },
+                    { pin: "ជើង NC ទី 2", func: "តភ្ជាប់ជាស៊េរីផ្ទាល់ជាមួយបណ្តាញភ្លើងបញ្ជាមេ 24V DC", color: "ពណ៌ក្រហម (2.5 mm²)" },
+                    { pin: "ជើង NO", func: "ខ្សែផ្តល់សញ្ញាអាសន្នទៅកាន់ជើងមីក្រូកុងត្រូល័រ", color: "ពណ៌ស (0.5 mm²)" }
+                ],
+                desc: "ប៊ូតុងបញ្ឈប់អាសន្នកម្រិត ០ (Category 0)។ ការសង្កត់ក្បាលប៊ូតុងរាងផ្សិតនឹងផ្តាច់ទាំងសៀគ្វីភ្លើងកំដៅ AC និងសៀគ្វីភ្លើងម៉ូទ័រ DC ក្នុងពេលតែមួយ ដោយបញ្ឈប់រាល់ដំណើរការម៉ាស៊ីនភ្លាមៗ។",
+                installTips: "ត្រូវប្រើជើងកុងតាក់ប្រភេទជាប់ជានិច្ច (Normally Closed - NC) សម្រាប់ប៊ូតុងសុវត្ថិភាព។ ប្រសិនបើខ្សែភ្លើងដាច់ ឬរបូតចេញ ម៉ាស៊ីននឹងបិទដំណើរការដោយស្វ័យប្រវត្តិដើម្បីសុវត្ថិភាព។"
+            },
+            {
+                id: "din",
+                tag: "TB-DIN",
+                name: "ប្រព័ន្ធដុំតំណចែកចាយខ្សែភ្លើងលើរបារ DIN-Rail (Terminal Blocks)",
+                model: "Phoenix Contact UK5N (ពណ៌ប្រផេះ) / UK2.5B / USLKG-5 (ពណ៌បៃតង-លឿងសម្រាប់ខ្សែដី)",
+                rating: "800V / 41A, បច្ចេកវិទ្យាខ្ចៅគៀប, ទទួលខ្សែភ្លើងទំហំ 0.2–6.0 mm²",
+                mounting: "ចាប់តម្រៀបគ្នាលើរបារដែក DIN rail ស្តង់ដារទំហំ 35×7.5mm (ប្រវែង 280mm)",
+                terminals: [
+                    { pin: "TB-L1..4", func: "របារចែកចាយភ្លើង 220V AC Live ភ្ជាប់ដោយស្ពានភ្លើង", color: "ពណ៌ត្នោត (Brown)" },
+                    { pin: "TB-N1..4", func: "របារចែកចាយភ្លើង 220V AC Neutral ភ្ជាប់ដោយស្ពានភ្លើង", color: "ពណ៌ខៀវ (Blue)" },
+                    { pin: "TB-PE1..4", func: "របារខ្សែដីសុវត្ថិភាពតួម៉ាស៊ីន (ភ្ជាប់ផ្ទាល់ទៅរបារដែក DIN rail)", color: "ពណ៌បៃតង/លឿង (Green/Yellow)" },
+                    { pin: "TB-24V1..6", func: "របារចែកចាយភ្លើងបូក +24V DC ឆ្លងកាត់ហ្វុយស៊ីប", color: "ពណ៌ក្រហម (Red)" },
+                    { pin: "TB-GND1..6", func: "របារខ្សែដករួម DC Ground 0V", color: "ពណ៌ខ្មៅ (Black)" }
+                ],
+                desc: "ផ្តល់នូវចំណុចតភ្ជាប់ខ្សែភ្លើងប្រមូលផ្តុំដែលធន់នឹងការញ័រ ធ្វើឱ្យការរៀបចំខ្សែភ្លើងមានសណ្តាប់ធ្នាប់ស្អាត និងងាយស្រួលយកឧបករណ៍វាស់ភ្លើងមកត្រួតពិនិត្យ។",
+                installTips: "ត្រូវគៀបក្បាលដែកស្រោបចុងខ្សែភ្លើង (Bootlace ferrules) ទៅលើខ្សែភ្លើងសរសៃតូចៗជានិច្ច មុនពេលស៊កចូលទៅក្នុងដុំតំណខ្ចៅគៀប ដើម្បីការពារកុំឱ្យសរសៃស្ពាន់បែកផុយ ឬឡើងកំដៅ។"
+            }
+        ];
+
+        /* =========================================================================
+           ផ្នែកទិន្នន័យទី ៣៖ តារាងតភ្ជាប់ខ្សែភ្លើងពីចំណុចមួយទៅចំណុចមួយ (WIRING SCHEDULE)
+           ========================================================================= */
+        const POINT_TO_POINT_WIRING = [
+            { id: "W-AC-01", from: "ព្រីភ្លើងចូល IEC [ជើង L]", to: "ឌីសង់ទ័រ MCB [ជើងទី 1]", type: "ខ្សែស្ពាន់ H07V-K", size: "2.5 mm²", color: "ពណ៌ត្នោត (Brown)", ferrule: "E2508", volt: "220V AC", current: "អតិបរមា 10A", func: "ខ្សែភ្លើងមេ Live ពីព្រីភ្លើងចូលទៅកាន់ឌីសង់ទ័រ" },
+            { id: "W-AC-02", from: "ព្រីភ្លើងចូល IEC [ជើង N]", to: "ឌីសង់ទ័រ MCB [ជើងទី 3]", type: "ខ្សែស្ពាន់ H07V-K", size: "2.5 mm²", color: "ពណ៌ខៀវ (Blue)", ferrule: "E2508", volt: "220V AC", current: "អតិបរមា 10A", func: "ខ្សែភ្លើងមេ Neutral ពីព្រីភ្លើងចូលទៅកាន់ឌីសង់ទ័រ" },
+            { id: "W-AC-03", from: "ព្រីភ្លើងចូល IEC [ជើង PE]", to: "បង្គោលខ្សែដីកណ្តាល [M6]", type: "ខ្សែស្ពាន់ H07V-K", size: "2.5 mm²", color: "ពណ៌បៃតង/លឿង (Green/Yellow)", ferrule: "កងមូល M6", volt: "0V", current: "ការពារឆ្លងភ្លើង", func: "ខ្សែដីការពារសុវត្ថិភាព (Protective Earth)" },
+            { id: "W-AC-04", from: "ឌីសង់ទ័រ MCB [ជើងទី 2]", to: "ប៊ូតុង E-Stop [ជើង NC 1 ចូល]", type: "ខ្សែស្ពាន់ H07V-K", size: "2.5 mm²", color: "ពណ៌ត្នោត (Brown)", ferrule: "E2508", volt: "220V AC", current: "អតិបរមា 10A", func: "ខ្សែភ្លើង AC Live ឆ្លងកាត់ការការពារទៅកាន់ប៊ូតុងអាសន្ន E-Stop" },
+            { id: "W-AC-05", from: "ប៊ូតុង E-Stop [ជើង NC 1 ចេញ]", to: "ដុំតំណចែកចាយ [TB-L1]", type: "ខ្សែស្ពាន់ H07V-K", size: "2.5 mm²", color: "ពណ៌ត្នោត (Brown)", ferrule: "E2508", volt: "220V AC", current: "អតិបរមា 10A", func: "ខ្សែភ្លើង AC Live ពីប៊ូតុងសុវត្ថិភាពទៅរបារចែកចាយ" },
+            { id: "W-AC-06", from: "ដុំតំណចែកចាយ [TB-L2]", to: "ដុំ SSR-40DA [ជើងទី 1]", type: "ខ្សែស្ពាន់ H07V-K", size: "2.5 mm²", color: "ពណ៌ត្នោត (Brown)", ferrule: "ជើងសម 4mm", volt: "220V AC", current: "កម្រិត 7A", func: "ផ្គត់ផ្គង់ភ្លើង AC Live ទៅកាន់ជើងចូលនៃដុំ SSR" },
+            { id: "W-AC-07", from: "ដុំតំណចែកចាយ [TB-L3]", to: "ដុំភ្លើង SMPS [ជើង L]", type: "ខ្សែស្ពាន់ H07V-K", size: "1.5 mm²", color: "ពណ៌ត្នោត (Brown)", ferrule: "ជើងសម 4mm", volt: "220V AC", current: "កម្រិត 2A", func: "ផ្គត់ផ្គង់ភ្លើង AC Live ទៅកាន់ដុំបំប្លែងភ្លើង 24V" },
+            { id: "W-AC-08", from: "ដុំតំណចែកចាយ [TB-L4]", to: "កុងត្រូល័រ Omron PID [ជើងទី 1]", type: "ខ្សែស្ពាន់ H07V-K", size: "0.75 mm²", color: "ពណ៌ត្នោត (Brown)", ferrule: "E7508", volt: "220V AC", current: "0.1A", func: "ផ្គត់ផ្គង់ភ្លើង AC Live ទៅកាន់កុងត្រូល័រកំដៅ PID" },
+            { id: "W-AC-09", from: "ឌីសង់ទ័រ MCB [ជើងទី 4]", to: "ដុំតំណចែកចាយ [TB-N1]", type: "ខ្សែស្ពាន់ H07V-K", size: "2.5 mm²", color: "ពណ៌ខៀវ (Blue)", ferrule: "E2508", volt: "0V Ref", current: "អតិបរមា 10A", func: "ខ្សែភ្លើង Neutral មេត្រឡប់ទៅរបារចែកចាយ" },
+            { id: "W-AC-10", from: "ដុំតំណចែកចាយ [TB-N2]", to: "ដុំភ្លើង SMPS [ជើង N]", type: "ខ្សែស្ពាន់ H07V-K", size: "1.5 mm²", color: "ពណ៌ខៀវ (Blue)", ferrule: "ជើងសម 4mm", volt: "0V Ref", current: "កម្រិត 2A", func: "ខ្សែ Neutral ត្រឡប់ពីដុំបំប្លែងភ្លើង 24V" },
+            { id: "W-AC-11", from: "ដុំតំណចែកចាយ [TB-N3]", to: "កុងត្រូល័រ Omron PID [ជើងទី 2]", type: "ខ្សែស្ពាន់ H07V-K", size: "0.75 mm²", color: "ពណ៌ខៀវ (Blue)", ferrule: "E7508", volt: "0V Ref", current: "0.1A", func: "ខ្សែ Neutral ត្រឡប់ពីកុងត្រូល័រ PID" },
+            { id: "W-AC-12", from: "ដុំតំណចែកចាយ [TB-N4]", to: "ដុំតំណសេរ៉ាមិច [Neutral]", type: "ខ្សែស្ពាន់ H07V-K", size: "2.5 mm²", color: "ពណ៌ខៀវ (Blue)", ferrule: "E2508", volt: "0V Ref", current: "កម្រិត 7A", func: "ខ្សែ Neutral ត្រឡប់ពីកងកំដៅសេរ៉ាមិច" },
+            { id: "W-AC-13", from: "ដុំ SSR-40DA [ជើងទី 2]", to: "ដុំតំណសេរ៉ាមិច [Heater Live]", type: "ខ្សែនីកែលសរសៃ", size: "14 AWG", color: "ពណ៌ត្នោត (ស្រោមកែវ Brown)", ferrule: "ជើងសម 4mm", volt: "220V AC", current: "6.8A", func: "ភ្លើង AC Live បិទបើកតាមចង្វាក់ទៅកាន់កងកំដៅសេរ៉ាមិច" },
+            { id: "W-AC-14", from: "ដុំតំណសេរ៉ាមិច [Live]", to: "កងកំដៅទី 1 [ជើង L]", type: "ខ្សែនីកែលសរសៃ", size: "14 AWG", color: "ពណ៌ត្នោត (ស្រោមកែវ Brown)", ferrule: "កងមូល M4", volt: "220V AC", current: "2.27A", func: "ខ្សែភ្លើង Live ចិញ្ចឹមកងកំដៅទី ១ (500W)" },
+            { id: "W-AC-15", from: "ដុំតំណសេរ៉ាមិច [Live]", to: "កងកំដៅទី 2 [ជើង L]", type: "ខ្សែនីកែលសរសៃ", size: "14 AWG", color: "ពណ៌ត្នោត (ស្រោមកែវ Brown)", ferrule: "កងមូល M4", volt: "220V AC", current: "2.27A", func: "ខ្សែភ្លើង Live ចិញ្ចឹមកងកំដៅទី ២ (500W)" },
+            { id: "W-AC-16", from: "ដុំតំណសេរ៉ាមិច [Live]", to: "កងកំដៅទី 3 [ជើង L]", type: "ខ្សែនីកែលសរសៃ", size: "14 AWG", color: "ពណ៌ត្នោត (ស្រោមកែវ Brown)", ferrule: "កងមូល M4", volt: "220V AC", current: "2.27A", func: "ខ្សែភ្លើង Live ចិញ្ចឹមកងកំដៅទី ៣ (500W)" },
+            { id: "W-AC-17", from: "ដុំតំណសេរ៉ាមិច [Neutral]", to: "កងកំដៅទី 1 [ជើង N]", type: "ខ្សែនីកែលសរសៃ", size: "14 AWG", color: "ពណ៌ខៀវ (ស្រោមកែវ Blue)", ferrule: "កងមូល M4", volt: "0V Ref", current: "2.27A", func: "ខ្សែ Neutral ត្រឡប់ពីកងកំដៅទី ១ (500W)" },
+            { id: "W-AC-18", from: "ដុំតំណសេរ៉ាមិច [Neutral]", to: "កងកំដៅទី 2 [ជើង N]", type: "ខ្សែនីកែលសរសៃ", size: "14 AWG", color: "ពណ៌ខៀវ (ស្រោមកែវ Blue)", ferrule: "កងមូល M4", volt: "0V Ref", current: "2.27A", func: "ខ្សែ Neutral ត្រឡប់ពីកងកំដៅទី ២ (500W)" },
+            { id: "W-AC-19", from: "ដុំតំណសេរ៉ាមិច [Neutral]", to: "កងកំដៅទី 3 [ជើង N]", type: "ខ្សែនីកែលសរសៃ", size: "14 AWG", color: "ពណ៌ខៀវ (ស្រោមកែវ Blue)", ferrule: "កងមូល M4", volt: "0V Ref", current: "2.27A", func: "ខ្សែ Neutral ត្រឡប់ពីកងកំដៅទី ៣ (500W)" },
+            { id: "W-GND-01", from: "បង្គោលខ្សែដីកណ្តាល [M6]", to: "ដុំភ្លើង SMPS [ជើង PE]", type: "ខ្សែស្ពាន់ H07V-K", size: "2.5 mm²", color: "ពណ៌បៃតង/លឿង (Green/Yellow)", ferrule: "កងមូល M4", volt: "0V", current: "ការពារឆ្លង", func: "ភ្ជាប់ខ្សែដីសុវត្ថិភាពទៅតួដុំផ្គត់ផ្គង់ថាមពល" },
+            { id: "W-GND-02", from: "បង្គោលខ្សែដីកណ្តាល [M6]", to: "ដុំតំណខ្សែដី DIN Rail [USLKG-5]", type: "ខ្សែស្ពាន់ H07V-K", size: "2.5 mm²", color: "ពណ៌បៃតង/លឿង (Green/Yellow)", ferrule: "E2508", volt: "0V", current: "ការពារឆ្លង", func: "ភ្ជាប់ខ្សែដីសុវត្ថិភាពទៅរបារ DIN rail និងទូអគ្គិសនី" },
+            { id: "W-GND-03", from: "បង្គោលខ្សែដីកណ្តាល [M6]", to: "ភ្លាំងតួឡដុត [ខ្ចៅ M8]", type: "ខ្សែស្ពាន់ H07V-K", size: "2.5 mm²", color: "ពណ៌បៃតង/លឿង (Green/Yellow)", ferrule: "កងមូល M8", volt: "0V", current: "ការពារឆ្លង", func: "ភ្ជាប់ខ្សែដីសុវត្ថិភាពទៅតួឡដុតដែកអ៊ីណុក" },
+            { id: "W-GND-04", from: "បង្គោលខ្សែដីកណ្តាល [M6]", to: "តួម៉ាស៊ីនសង្កត់ធ្យូង [M6]", type: "ខ្សែស្ពាន់ H07V-K", size: "2.5 mm²", color: "ពណ៌បៃតង/លឿង (Green/Yellow)", ferrule: "កងមូល M6", volt: "0V", current: "ការពារឆ្លង", func: "ភ្ជាប់ខ្សែដីសុវត្ថិភាពទៅតួម៉ាស៊ីនសង្កត់វីសស្ពីរ៉ាល់" },
+            { id: "W-GND-05", from: "បង្គោលខ្សែដីកណ្តាល [M6]", to: "បន្ទះមុខផ្ទាំងបញ្ជា [M4]", type: "ខ្សែស្ពាន់ H07V-K", size: "1.5 mm²", color: "ពណ៌បៃតង/លឿង (Green/Yellow)", ferrule: "កងមូល M4", volt: "0V", current: "ការពារឆ្លង", func: "ភ្ជាប់ខ្សែដីសុវត្ថិភាពទៅបន្ទះលោហៈផ្ទាំងបញ្ជាខាងមុខ" },
+            { id: "W-DC-01", from: "ដុំភ្លើង SMPS [ជើង +V]", to: "ប្រអប់ហ្វុយស៊ីប [ជើងចូលមេ]", type: "ខ្សែទន់ UL1015", size: "4.0 mm²", color: "ពណ៌ក្រហម (Red)", ferrule: "ជើងសម 4mm", volt: "24V DC", current: "អតិបរមា 15A", func: "ខ្សែមេផ្គត់ផ្គង់ភ្លើងបូក +24V DC" },
+            { id: "W-DC-02", from: "ដុំភ្លើង SMPS [ជើង -V]", to: "ដុំតំណចែកចាយ [TB-GND1]", type: "ខ្សែទន់ UL1015", size: "4.0 mm²", color: "ពណ៌ខ្មៅ (Black)", ferrule: "ជើងសម 4mm", volt: "0V DC", current: "អតិបរមា 15A", func: "ខ្សែមេត្រឡប់ប៉ូលដករួម 0V DC" },
+            { id: "W-DC-03", from: "ប្រអប់ហ្វុយស៊ីប [ហ្វុយស៊ីបទី 1: 6A]", to: "ដុំបញ្ជាម៉ូទ័រទី 1 [ជើង B+]", type: "ខ្សែទន់ UL1015", size: "2.5 mm²", color: "ពណ៌ក្រហម (Red)", ferrule: "E2508", volt: "24V DC", current: "កម្រិត 5A", func: "ផ្គត់ផ្គង់ភ្លើង 24V ទៅដុំបញ្ជាម៉ូទ័រកិនធ្យូង" },
+            { id: "W-DC-04", from: "ដុំតំណចែកចាយ [TB-GND2]", to: "ដុំបញ្ជាម៉ូទ័រទី 1 [ជើង B-]", type: "ខ្សែទន់ UL1015", size: "2.5 mm²", color: "ពណ៌ខ្មៅ (Black)", ferrule: "E2508", volt: "0V DC", current: "កម្រិត 5A", func: "ខ្សែដកត្រឡប់ពីដុំបញ្ជាម៉ូទ័រកិនធ្យូង" },
+            { id: "W-DC-05", from: "ប្រអប់ហ្វុយស៊ីប [ហ្វុយស៊ីបទី 2: 4A]", to: "ដុំបញ្ជាម៉ូទ័រទី 2 [ជើង B+]", type: "ខ្សែទន់ UL1015", size: "2.5 mm²", color: "ពណ៌ក្រហម (Red)", ferrule: "E2508", volt: "24V DC", current: "កម្រិត 3A", func: "ផ្គត់ផ្គង់ភ្លើង 24V ទៅដុំបញ្ជាម៉ូទ័រលាយកាវ" },
+            { id: "W-DC-06", from: "ដុំតំណចែកចាយ [TB-GND3]", to: "ដុំបញ្ជាម៉ូទ័រទី 2 [ជើង B-]", type: "ខ្សែទន់ UL1015", size: "2.5 mm²", color: "ពណ៌ខ្មៅ (Black)", ferrule: "E2508", volt: "0V DC", current: "កម្រិត 3A", func: "ខ្សែដកត្រឡប់ពីដុំបញ្ជាម៉ូទ័រលាយកាវ" },
+            { id: "W-DC-07", from: "ប្រអប់ហ្វុយស៊ីប [ហ្វុយស៊ីបទី 3: 8A]", to: "ដុំបញ្ជាម៉ូទ័រទី 3 [ជើង B+]", type: "ខ្សែទន់ UL1015", size: "2.5 mm²", color: "ពណ៌ក្រហម (Red)", ferrule: "E2508", volt: "24V DC", current: "កម្រិត 7A", func: "ផ្គត់ផ្គង់ភ្លើង 24V ទៅដុំបញ្ជាម៉ូទ័រសង្កត់វីសស្ពីរ៉ាល់" },
+            { id: "W-DC-08", from: "ដុំតំណចែកចាយ [TB-GND4]", to: "ដុំបញ្ជាម៉ូទ័រទី 3 [ជើង B-]", type: "ខ្សែទន់ UL1015", size: "2.5 mm²", color: "ពណ៌ខ្មៅ (Black)", ferrule: "E2508", volt: "0V DC", current: "កម្រិត 7A", func: "ខ្សែដកត្រឡប់ពីដុំបញ្ជាម៉ូទ័រសង្កត់វីសស្ពីរ៉ាល់" },
+            { id: "W-DC-09", from: "ប្រអប់ហ្វុយស៊ីប [ហ្វុយស៊ីបទី 4: 2A]", to: "បន្ទះ PLC [ជើង VCC]", type: "ខ្សែបន្ទះ UL1007", size: "1.0 mm²", color: "ពណ៌ក្រហម (Red)", ferrule: "E1008", volt: "24V DC", current: "កម្រិត 1A", func: "ភ្លើងចិញ្ចឹមបន្ទះមីក្រូកុងត្រូល័រឧស្សាហកម្ម" },
+            { id: "W-DC-10", from: "ដុំតំណចែកចាយ [TB-GND5]", to: "បន្ទះ PLC [ជើង GND]", type: "ខ្សែបន្ទះ UL1007", size: "1.0 mm²", color: "ពណ៌ខ្មៅ (Black)", ferrule: "E1008", volt: "0V DC", current: "កម្រិត 1A", func: "ខ្សែដកត្រឡប់ពីបន្ទះមីក្រូកុងត្រូល័រ" },
+            { id: "W-MOT-01", from: "ដុំបញ្ជាទី 1 [M+]", to: "ម៉ូទ័រកិនធ្យូង [ប៉ូល +]", type: "ខ្សែវេញគូ", size: "2.5 mm²", color: "ពណ៌ក្រហម (Red)", ferrule: "E2508", volt: "0-24V PWM", current: "5A", func: "ខ្សែភ្លើងអូសម៉ូទ័រកិនធ្យូងវិលទៅមុខ" },
+            { id: "W-MOT-02", from: "ដុំបញ្ជាទី 1 [M-]", to: "ម៉ូទ័រកិនធ្យូង [ប៉ូល -]", type: "ខ្សែវេញគូ", size: "2.5 mm²", color: "ពណ៌ខ្មៅ (Black)", ferrule: "E2508", volt: "0-24V PWM", current: "5A", func: "ខ្សែភ្លើងត្រឡប់របស់ម៉ូទ័រកិនធ្យូង" },
+            { id: "W-MOT-03", from: "ដុំបញ្ជាទី 2 [M+]", to: "ម៉ូទ័រលាយកាវ [ប៉ូល +]", type: "ខ្សែវេញគូ", size: "2.5 mm²", color: "ពណ៌ក្រហម (Red)", ferrule: "E2508", volt: "0-24V PWM", current: "3A", func: "ខ្សែភ្លើងអូសម៉ូទ័រលាយកាវវិលទៅមុខ" },
+            { id: "W-MOT-04", from: "ដុំបញ្ជាទី 2 [M-]", to: "ម៉ូទ័រលាយកាវ [ប៉ូល -]", type: "ខ្សែវេញគូ", size: "2.5 mm²", color: "ពណ៌ខ្មៅ (Black)", ferrule: "E2508", volt: "0-24V PWM", current: "3A", func: "ខ្សែភ្លើងត្រឡប់របស់ម៉ូទ័រលាយកាវ" },
+            { id: "W-MOT-05", from: "ដុំបញ្ជាទី 3 [M+]", to: "ម៉ូទ័រសង្កត់វីស [ប៉ូល +]", type: "ខ្សែវេញគូ", size: "2.5 mm²", color: "ពណ៌ក្រហម (Red)", ferrule: "E2508", volt: "0-24V PWM", current: "7A", func: "ខ្សែភ្លើងកម្លាំងមួលខ្ពស់អូសម៉ូទ័រសង្កត់ធ្យូង" },
+            { id: "W-MOT-06", from: "ដុំបញ្ជាទី 3 [M-]", to: "ម៉ូទ័រសង្កត់វីស [ប៉ូល -]", type: "ខ្សែវេញគូ", size: "2.5 mm²", color: "ពណ៌ខ្មៅ (Black)", ferrule: "E2508", volt: "0-24V PWM", current: "7A", func: "ខ្សែភ្លើងត្រឡប់របស់ម៉ូទ័រសង្កត់ធ្យូង" },
+            { id: "W-SIG-01", from: "កុងត្រូល័រ Omron PID [ជើងទី 4 (+)]", to: "ដុំ SSR-40DA [ជើងទី 3 (+)]", type: "ខ្សែវេញស្រោបការពារ", size: "0.5 mm²", color: "ពណ៌ស/ទឹកក្រូច (Orange)", ferrule: "E0508", volt: "12V DC Logic", current: "20 mA", func: "សញ្ញាបញ្ជាបិទបើកកំដៅពី PID ទៅកាន់ដុំ SSR" },
+            { id: "W-SIG-02", from: "កុងត្រូល័រ Omron PID [ជើងទី 5 (-)]", to: "ដុំ SSR-40DA [ជើងទី 4 (-)]", type: "ខ្សែវេញស្រោបការពារ", size: "0.5 mm²", color: "ពណ៌ស/ខៀវ (Blue)", ferrule: "E0508", volt: "0V DC Logic", current: "20 mA", func: "ខ្សែដកត្រឡប់នៃសញ្ញាបញ្ជា PID ពីដុំ SSR" },
+            { id: "W-SIG-03", from: "សេនស័រ K-Type [ពណ៌លឿង +]", to: "កុងត្រូល័រ Omron PID [ជើងទី 11 (+)]", type: "ខ្សែសេនស័រកំដៅ", size: "20 AWG", color: "ពណ៌លឿង (Yellow)", ferrule: "ជើងសមស្រោបមាស", volt: "0-40 mV", current: "មីក្រូអំពែរ", func: "ខ្សែសញ្ញាសេនស័រកំដៅប៉ូលបូក (Chromel)" },
+            { id: "W-SIG-04", from: "សេនស័រ K-Type [ពណ៌ក្រហម -]", to: "កុងត្រូល័រ Omron PID [ជើងទី 12 (-)]", type: "ខ្សែសេនស័រកំដៅ", size: "20 AWG", color: "ពណ៌ក្រហម (Red)", ferrule: "ជើងសមស្រោបមាស", volt: "0-40 mV", current: "មីក្រូអំពែរ", func: "ខ្សែសញ្ញាសេនស័រកំដៅប៉ូលដក (Alumel)" },
+            { id: "W-SIG-05", from: "បន្ទះ PLC [ជើង PWM 1]", to: "ដុំបញ្ជាទី 1 [RPWM]", type: "ខ្សែបន្ទះ Ribbon", size: "0.3 mm²", color: "ពណ៌ទឹកក្រូច (Orange)", ferrule: "ជើងស៊ក Dupont", volt: "5V TTL", current: "5 mA", func: "សញ្ញាបញ្ជាល្បឿន 20kHz PWM សម្រាប់ម៉ូទ័រកិនធ្យូង" },
+            { id: "W-SIG-06", from: "បន្ទះ PLC [ជើង DIR 1]", to: "ដុំបញ្ជាទី 1 [R_EN / L_EN]", type: "ខ្សែបន្ទះ Ribbon", size: "0.3 mm²", color: "ពណ៌ស្វាយ (Purple)", ferrule: "ជើងស៊ក Dupont", volt: "5V TTL", current: "5 mA", func: "សញ្ញាបើកដំណើរការ និងទិសដៅម៉ូទ័រកិនធ្យូង" },
+            { id: "W-SIG-07", from: "បន្ទះ PLC [ជើង PWM 2]", to: "ដុំបញ្ជាទី 2 [RPWM]", type: "ខ្សែបន្ទះ Ribbon", size: "0.3 mm²", color: "ពណ៌ទឹកក្រូច (Orange)", ferrule: "ជើងស៊ក Dupont", volt: "5V TTL", current: "5 mA", func: "សញ្ញាបញ្ជាល្បឿន PWM សម្រាប់ម៉ូទ័រលាយកាវ" },
+            { id: "W-SIG-08", from: "បន្ទះ PLC [ជើង DIR 2]", to: "ដុំបញ្ជាទី 2 [R_EN / L_EN]", type: "ខ្សែបន្ទះ Ribbon", size: "0.3 mm²", color: "ពណ៌ស្វាយ (Purple)", ferrule: "ជើងស៊ក Dupont", volt: "5V TTL", current: "5 mA", func: "សញ្ញាបើកដំណើរការ និងទិសដៅម៉ូទ័រលាយកាវ" },
+            { id: "W-SIG-09", from: "បន្ទះ PLC [ជើង PWM 3]", to: "ដុំបញ្ជាទី 3 [RPWM]", type: "ខ្សែបន្ទះ Ribbon", size: "0.3 mm²", color: "ពណ៌ទឹកក្រូច (Orange)", ferrule: "ជើងស៊ក Dupont", volt: "5V TTL", current: "5 mA", func: "សញ្ញាបញ្ជាល្បឿនកម្លាំងមួលខ្ពស់សម្រាប់ម៉ូទ័រសង្កត់វីស" },
+            { id: "W-SIG-10", from: "បន្ទះ PLC [ជើង DIR 3]", to: "ដុំបញ្ជាទី 3 [R_EN / L_EN]", type: "ខ្សែបន្ទះ Ribbon", size: "0.3 mm²", color: "ពណ៌ស្វាយ (Purple)", ferrule: "ជើងស៊ក Dupont", volt: "5V TTL", current: "5 mA", func: "សញ្ញាបើកដំណើរការម៉ូទ័រសង្កត់វីសទៅមុខ" }
+        ];
+
+        /* =========================================================================
+           ផ្នែកទិន្នន័យទី ៤៖ នីតិវិធីប្រតិបត្តិការស្តង់ដារ (SOP) និងរូបមន្តផលិតធ្យូងអនាម័យ
+           ========================================================================= */
+        const SOP_MANUAL = {
+            feedstockPrep: [
+                "១. រែងវត្ថុធាតុដើមជីវម៉ាសកសិកម្ម (អង្កាម កម្ទេចឈើ/អាចម៍រណារ បំណែកត្រឡោកដូង) ឆ្លងកាត់កញ្ច្រែងសំណាញ់ទំហំ 10mm ដើម្បីញែកយកគ្រួស ដែកគោល ឬកម្ទេចធំៗចេញ។",
+                "២. ហាលសម្ងួតជីវម៉ាសក្រោមពន្លឺថ្ងៃរយៈពេល ២៤–៤៨ ម៉ោង រហូតដល់កម្រិតសំណើមធ្លាក់ចុះក្រោម 10% យ៉ាងម៉ឺងម៉ាត់ (ផ្ទៀងផ្ទាត់ដោយឧបករណ៍វាស់សំណើមឌីជីថល)។ ជីវម៉ាសដែលមានសំណើមលើសពី >12% ធ្វើឱ្យខាតបង់ថាមពលកំដៅទៅលើការដាំទឹកឱ្យក្លាយជាចំហាយ ធ្វើឱ្យសីតុណ្ហភាពស្នូលធ្លាក់ចុះ និងបង្កើតជាតិទឹកអាស៊ីតច្រើននៅក្នុងធុងបញ្ចុះកំដៅ។",
+                "៣. ថ្លឹងជីវម៉ាសស្ងួតចំនួន 1.20 kg សម្រាប់ការដុតបំប្លែងមួយលើកៗ។"
+            ],
+            pyrolysisRun: [
+                "១. ពិនិត្យមើលសន្ទះទ្វាររុញបញ្ចេញធ្យូងនៅបាតឡដុត ដើម្បីប្រាកដថាវាត្រូវបានបិទជិត និងចាក់គន្លឹះត្រឹមត្រូវ។",
+                "២. បើកសន្ទះទ្វាររុញនៅកឡាវខាងលើ រួចចាក់ជីវម៉ាសស្ងួតទម្ងន់ 1.20 kg ចូល។ បិទសន្ទះទ្វាររុញឱ្យណែន និងពិនិត្យមើលទ្រនាប់កៅស៊ូស៊ីលីកូនឱ្យជិតមិនឱ្យខ្យល់ចូល។",
+                "៣. បើកម៉ូទ័របូមទឹកត្រជាក់ឱ្យហូរវិលឆ្លងកាត់ធុងរបុំទង់ដែងបញ្ចុះកំដៅ។ ផ្ទៀងផ្ទាត់ថាទឹកត្រជាក់ហូរក្នុងល្បឿនលើសពី >2.0 លីត្រ/នាទី។",
+                "៤. បើកឌីសង់ទ័រមេ ២ ប៉ូល 10A (MCB)។ កំណត់សីតុណ្ហភាពគោលដៅលើកុងត្រូល័រ Omron PID ទៅ 387.0°C។",
+                "៥. កុងត្រូល័រ PID នឹងបញ្ជាបិទបើកកងកំដៅ 1500W តាមរយៈដុំ SSR។ តាមដានខ្សែកោងសីតុណ្ហភាពផ្ទាល់៖ សីតុណ្ហភាពបន្ទប់ -> 180°C (ដំណាក់កាលភាយចំហាយទឹក ~១២ នាទី) -> 300°C (ចាប់ផ្តើមប្រតិកម្មបំបែកកំដៅបញ្ចេញផ្សែងក្រាស់ ~២២ នាទី) -> 387°C (ដំណាក់កាលបំប្លែងកាបូនពេញទំហឹង ~៣០ នាទី)។",
+                "៦. សង្កេតមើលទឹកខ្មេះឈើ (Wood Vinegar) ស្រក់ចូលទៅក្នុងកែវត្រង។ ឧស្ម័នឆេះ (Syngas) នឹងពុះឆ្លងកាត់ដបទឹកចម្រោះ ហើយអាចដុតបំផ្លាញចោលនៅចុងបំពង់បញ្ចេញដើម្បីឱ្យឆេះស្អាតគ្មានផ្សែង។",
+                "៧. នៅពេលផ្សែង និងចំហាយថយចុះរហូតដល់ស្ទើរតែអស់ទាំងស្រុង (ប្រហែល ៣៥–៤០ នាទីសរុប) សូមបិទកុងតាក់កងកំដៅ។",
+                "៨. ទុកឱ្យឡដុតចុះត្រជាក់ក្រោម 60°C សិន មុនពេលបើកសន្ទះបញ្ចេញធ្យូង។ ការបើកយកធ្យូងក្តៅឱ្យប៉ះនឹងអុកស៊ីសែនក្នុងខ្យល់ នឹងធ្វើឱ្យធ្យូងឆេះក្លាយជាផេះភ្លាមៗ។"
+            ],
+            binderRecipe: [
+                "១. ថ្លឹងម្សៅមីឆៅស្ងួត (ម្សៅដំឡូងមី) ចំនួន 70.0 ក្រាម។",
+                "២. ចាក់ទឹកស្អាតត្រជាក់ចំណុះ 930 ml ចូលក្នុងឆ្នាំងអ៊ីណុក។ ចាក់ម្សៅមីចូល រួចកូរឱ្យរលាយសព្វល្អទៅជាទឹកម្សៅពណ៌សដូចទឹកដោះគោ ដោយមិនឱ្យមានដុំកក។",
+                "៣. ដាក់ឆ្នាំងលើចង្ក្រានក្នុងកម្រិតភ្លើងមធ្យម។ កូរជាប់ជានិច្ចដោយវែកឈើ ឬប្រដាប់វាយពងទា ដើម្បីការពារកុំឱ្យខ្លោចជាប់បាតឆ្នាំង។",
+                "៤. នៅសីតុណ្ហភាព 72°C–78°C ម៉ូលេគុលម្សៅនឹងស្រូបទឹកហើយរីកបែក (Gelatinization)។ ទឹកម្សៅនឹងប្រែទៅជាកាវខាប់ថ្លា និងស្អិតខ្លាំងក្នុងរយៈពេលត្រឹមតែ ៣០ វិនាទី។ លើកចេញពីចង្ក្រានភ្លាមៗ។"
+            ],
+            mixingAndPressing: [
+                "១. ចាក់ម្សៅធ្យូងជីវម៉ាសដែលទើបកិនម៉ដ្ឋរួច (ទំហំគ្រាប់ <1.5mm) ចំនួន 1.0 kg ចូលទៅក្នុងស្នូកម៉ាស៊ីនលាយរាងអក្សរ U។",
+                "២. ចាក់កាវម្សៅមីក្តៅឧណ្ហៗ (50°C) ចំណុះ 260–280 ml ចូលទៅក្នុងម្សៅធ្យូង។",
+                "៣. បើកម៉ូទ័រលាយក្នុងល្បឿន 60 RPM។ ទុកឱ្យស្លាបកូរស្ពីរ៉ាល់ច្របល់ល្បាយឱ្យសព្វស្មើសាច់រយៈពេល ៣ ទៅ ៥ នាទី។",
+                "៤. ធ្វើតេស្តច្របាច់ដោយដៃ (Squeeze Test)៖ ចាប់ល្បាយធ្យូងមួយក្តាប់ដៃ រួចច្របាច់ឱ្យណែន។ ល្បាយដែលត្រឹមត្រូវនឹងកកជាដុំរលោងរឹងមាំ មិនប្រេះបែកនៅពេលលាដៃវិញ ហើយគ្មានទឹកហូរស្រក់តាមចន្លោះម្រាមដៃឡើយ (សំណើមល្អបំផុត៖ 22%–25%)។",
+                "៥. បើកម៉ូទ័រម៉ាស៊ីនសង្កត់វីសស្ពីរ៉ាល់ (20 RPM)។ បញ្ចូលល្បាយធ្យូងទៅក្នុងមាត់ទទួល។ វីសស្ពីរ៉ាល់នឹងបង្ហាប់ល្បាយក្នុងផលធៀប 2.8:1 ដោយរុញចេញជាដុំធ្យូងរាងស៊ីឡាំងហាប់ណែនដែលមានរន្ធខ្យល់ទំហំ 8mm នៅចំកណ្តាល។",
+                "៦. កាត់ដើមធ្យូងដែលហូរចេញមកដោយប្រើខ្សែលួសកាត់ ឱ្យមានប្រវែង 80–100mm ក្នុងមួយដុំៗនៅលើថាសទទួល។"
+            ],
+            curingAndQualityCheck: [
+                "១. តម្រៀបដុំធ្យូងសើមនៅលើកញ្ច្រែងសំណាញ់ដែក ហាលក្រោមពន្លឺថ្ងៃពេញរយៈពេល ៤៨ ម៉ោង (ឬសម្ងួតក្នុងទូខ្យល់ក្តៅ 60°C រយៈពេល ៨ ម៉ោង) រហូតដល់សំណើមធ្លាក់ចុះក្រោម 8%។",
+                "២. ការធ្វើតេស្តទម្លាក់ស្តង់ដារ (Drop Test)៖ ទម្លាក់ដុំធ្យូងស្ងួតពីកម្ពស់ 1.50 ម៉ែត្រ មកលើកម្រាលស៊ីម៉ងត៍រឹង។ ដុំធ្យូងដែលផលិតបានត្រឹមត្រូវនឹងលោត ឬនៅរក្សាទ្រង់ទ្រាយដើមទាំងស្រុងដោយមិនបែក ឬផុយជ្រុះឡើយ។",
+                "៣. ការធ្វើតេស្តដុតចំហេះ៖ ដុំធ្យូងទម្ងន់ 100g នឹងឆេះដោយគ្មានផ្សែង ផ្តល់កំដៅខ្លាំងថេររយៈពេល ៧០–៩០ នាទី ជាមួយនឹងតម្លៃកំដៅ ~26 MJ/kg និងកម្រិតផេះតិចជាង <5%។"
+            ]
+        };
+
+        /* =========================================================================
+           ៥. ម៉ាស៊ីនបង្កើតសំឡេងរូបវន្ត (WEB AUDIO SYNTHESIZER)
+           ========================================================================= */
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) this.ctx = new AudioContext();
+                }
+            }
+            playClick() {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(440, this.ctx.currentTime + 0.04);
+                gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.04);
+            }
+            playHum() {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(120, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(60, this.ctx.currentTime + 0.25);
+                gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+        }
+        const audio = new SoundEngine();
+        function toggleAudioEngine() {
+            audio.muted = !audio.muted;
+            document.getElementById('audio-icon').textContent = audio.muted ? '🔇' : '🔊';
+            if (!audio.muted) audio.playClick();
+        }
+
+        /* =========================================================================
+           ៦. ការរៀបចំឆាក THREE.JS ពន្លឺ និងសម្ភារៈ 3D
+           ========================================================================= */
+        const container = document.getElementById('webgl-container');
+        const scene = new THREE.Scene();
+        scene.background = null;
+
+        const aspect = window.innerWidth / window.innerHeight;
+        const camera = new THREE.PerspectiveCamera(36, aspect, 1, 1000);
+        camera.position.set(135, 90, 135);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.target.set(0, 15, 0);
+        controls.maxDistance = 450;
+        controls.minDistance = 20;
+
+        // Ground CAD Grid
+        const gridHelper = new THREE.GridHelper(240, 48, 0x00f0ff, 0x0e172a);
+        gridHelper.position.y = -32;
+        gridHelper.material.opacity = 0.4;
+        gridHelper.material.transparent = true;
+        scene.add(gridHelper);
+
+        // Environmental Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+        scene.add(ambientLight);
+
+        const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
+        keyLight.position.set(65, 115, 65);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.width = 2048;
+        keyLight.shadow.mapSize.height = 2048;
+        scene.add(keyLight);
+
+        const fillLight = new THREE.DirectionalLight(0x00f0ff, 0.6);
+        fillLight.position.set(-65, 45, -65);
+        scene.add(fillLight);
+
+        const rimLight = new THREE.PointLight(0x38bdf8, 1.2, 250);
+        rimLight.position.set(0, 60, -80);
+        scene.add(rimLight);
+
+        // Materials Dictionary (Solid vs X-Ray vs Wire Colors)
+        const materials = {
+            solidMetal: new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.88, roughness: 0.22, side: THREE.DoubleSide }),
+            solidDarkMetal: new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.82, roughness: 0.45, side: THREE.DoubleSide }),
+            solidCopper: new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.9, roughness: 0.2 }),
+            heaterOff: new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.4, roughness: 0.8 }),
+            heaterGlow: new THREE.MeshStandardMaterial({ color: 0xff3300, emissive: 0xff3300, emissiveIntensity: 1.4, roughness: 0.3 }),
+            brassTerminal: new THREE.MeshStandardMaterial({ color: 0xeab308, metalness: 0.85, roughness: 0.25 }),
+            pcbGreen: new THREE.MeshStandardMaterial({ color: 0x065f46, roughness: 0.6 }),
+            acrylicClear: new THREE.MeshPhysicalMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.35, roughness: 0.1, transmission: 0.9 }),
+
+            // Process Particle Materials
+            matBiomass: new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.75 }),
+            matVapor: new THREE.MeshStandardMaterial({ color: 0xcbd5e1, transparent: true, opacity: 0.65, roughness: 0.3 }),
+            matBiochar: new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.85 }),
+
+            // X-Ray Ghosted Materials
+            xrayBlue: new THREE.MeshPhysicalMaterial({ color: 0x00f0ff, metalness: 0.1, roughness: 0.1, transmission: 0.9, opacity: 0.28, transparent: true, side: THREE.DoubleSide, depthWrite: false }),
+            xrayDark: new THREE.MeshPhysicalMaterial({ color: 0x334155, transmission: 0.85, opacity: 0.22, transparent: true, side: THREE.DoubleSide, depthWrite: false }),
+            xrayCopper: new THREE.MeshPhysicalMaterial({ color: 0xf59e0b, transmission: 0.85, opacity: 0.32, transparent: true, side: THREE.DoubleSide, depthWrite: false }),
+
+            edgeMat: new THREE.LineBasicMaterial({ color: 0x00f0ff, linewidth: 1, transparent: true, opacity: 0.55 }),
+
+            // Wire Colors
+            wireBrown: new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.5 }), // AC Live
+            wireBlue: new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.5 }),  // AC Neutral
+            wireGreenYellow: new THREE.MeshStandardMaterial({ color: 0x84cc16, roughness: 0.5 }), // Earth PE
+            wireRed: new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.5 }),   // +24V DC
+            wireBlack: new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.6 }), // DC GND
+            wireYellow: new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.5 }),// Thermocouple +
+            wireWhite: new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 }), // Signal / E-stop
+            wireOrange: new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.5 }),// PWM
+            wirePurple: new THREE.MeshStandardMaterial({ color: 0xa855f7, roughness: 0.5 }),// Direction
+            ferruleSilver: new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.95, roughness: 0.15 })
+        };
+
+        /* =========================================================================
+           ៧. ការសាងសង់គំរូ 3D CAD (តួម៉ាស៊ីន ប្រព័ន្ធអគ្គិសនីខាងក្នុង និងមេកានិច)
+           ========================================================================= */
+        const biocharAssembly = new THREE.Group();
+        scene.add(biocharAssembly);
+
+        const partsList = [];
+        const wireHarnessList = [];
+
+        function createCADPart(geometry, type = 'metal', specId = null) {
+            let solidMat = materials.solidMetal;
+            let xrayMat = materials.xrayBlue;
+
+            if (type === 'dark') { solidMat = materials.solidDarkMetal; xrayMat = materials.xrayDark; }
+            if (type === 'copper') { solidMat = materials.solidCopper; xrayMat = materials.xrayCopper; }
+            if (type === 'heater') { solidMat = materials.heaterOff; xrayMat = materials.heaterOff; }
+
+            const mesh = new THREE.Mesh(geometry, xrayMat);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            mesh.userData.solidMat = solidMat;
+            mesh.userData.xrayMat = xrayMat;
+            mesh.userData.isHeater = (type === 'heater');
+            if (specId) mesh.userData.specId = specId;
+
+            const edges = new THREE.EdgesGeometry(geometry);
+            const line = new THREE.LineSegments(edges, materials.edgeMat);
+            mesh.add(line);
+
+            return mesh;
+        }
+
+        // Helper: Create 3D Wire with Crimp Ferrules at both ends
+        function create3DWire(points, colorMat, circuitType, wireGaugeRadius = 0.12, wireId = "") {
+            const curve = new THREE.CatmullRomCurve3(points);
+            const tubeGeo = new THREE.TubeGeometry(curve, 32, wireGaugeRadius, 8, false);
+            const wireMesh = new THREE.Mesh(tubeGeo, colorMat);
+            wireMesh.castShadow = true;
+            wireMesh.userData.isWire = true;
+            wireMesh.userData.circuit = circuitType;
+            wireMesh.userData.wireId = wireId;
+            wireMesh.userData.origMat = colorMat;
+
+            const startPt = points[0];
+            const endPt = points[points.length - 1];
+
+            const ferruleGeo = new THREE.CylinderGeometry(wireGaugeRadius * 1.35, wireGaugeRadius * 1.35, 0.5, 8);
+            const f1 = new THREE.Mesh(ferruleGeo, materials.ferruleSilver);
+            f1.position.copy(startPt);
+            wireMesh.add(f1);
+
+            const f2 = new THREE.Mesh(ferruleGeo, materials.ferruleSilver);
+            f2.position.copy(endPt);
+            wireMesh.add(f2);
+
+            wireHarnessList.push(wireMesh);
+            return wireMesh;
+        }
+
+        // --- 7.1. តួម៉ាស៊ីន និងឆ្អឹងអាលុយមីញ៉ូម T-SLOT 2020 ---
+        const chassisGroup = new THREE.Group();
+        biocharAssembly.add(chassisGroup);
+
+        const basePlate = new THREE.Mesh(new THREE.BoxGeometry(50, 1.2, 30), materials.solidDarkMetal);
+        basePlate.position.set(0, -28, 0);
+        basePlate.receiveShadow = true;
+        chassisGroup.add(basePlate);
+
+        const feetPositions = [[-22, -29, -12], [22, -29, -12], [-22, -29, 12], [22, -29, 12]];
+        feetPositions.forEach(p => {
+            const foot = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.8, 1.2, 16), materials.solidDarkMetal);
+            foot.position.set(...p);
+            chassisGroup.add(foot);
+        });
+
+        const postPositions = [[-23, 10, -13], [-23, 10, 13], [23, 10, -13], [23, 10, 13], [0, 10, -13], [0, 10, 13]];
+        postPositions.forEach(p => {
+            const post = createCADPart(new THREE.BoxGeometry(1.6, 74, 1.6), 'dark');
+            post.position.set(...p);
+            chassisGroup.add(post);
+        });
+
+        const frontPanel = new THREE.Mesh(new THREE.BoxGeometry(45, 18, 0.4), materials.acrylicClear);
+        frontPanel.position.set(0, -19, 13.5);
+        chassisGroup.add(frontPanel);
+        chassisGroup.userData.frontPanel = frontPanel;
+
+        // --- 7.2. ប្រព័ន្ធអគ្គិសនីខាងក្នុងលើរបារ DIN RAIL ---
+        const electricalGroup = new THREE.Group();
+        biocharAssembly.add(electricalGroup);
+        electricalGroup.position.set(0, -25, 0);
+
+        const dinRailGeo = new THREE.BoxGeometry(42, 1.8, 0.4);
+        const dinRail = createCADPart(dinRailGeo, 'metal', 'din');
+        dinRail.position.set(0, 1.5, -8);
+        electricalGroup.add(dinRail);
+
+        // MeanWell 24V 15A SMPS
+        const smpsGroup = new THREE.Group();
+        const smpsBox = createCADPart(new THREE.BoxGeometry(14, 4.5, 9), 'metal', 'smps');
+        smpsGroup.add(smpsBox);
+
+        for (let i = 0; i < 9; i++) {
+            const tScrew = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.4, 8), materials.brassTerminal);
+            tScrew.position.set(-5.5 + i * 1.35, 1.8, 4.2);
+            smpsGroup.add(tScrew);
+        }
+        const smpsLed = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshBasicMaterial({ color: 0x10b981 }));
+        smpsLed.position.set(5.8, 1.8, 4.2);
+        smpsGroup.add(smpsLed);
+
+        smpsGroup.position.set(13, 3.5, -4);
+        electricalGroup.add(smpsGroup);
+
+        // Schneider 2-Pole 10A MCB Circuit Breaker
+        const mcbGroup = new THREE.Group();
+        const mcbBody = createCADPart(new THREE.BoxGeometry(3.5, 6.5, 5), 'dark', 'mcb');
+        mcbGroup.add(mcbBody);
+
+        const mcbToggle = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 1.4), new THREE.MeshStandardMaterial({ color: 0xdc2626 }));
+        mcbToggle.position.set(0, 0.8, 2.7);
+        mcbGroup.add(mcbToggle);
+        mcbGroup.position.set(-18, 3.5, -8);
+        electricalGroup.add(mcbGroup);
+
+        // FOTEK 40A SSR & Heatsink
+        const ssrGroup = new THREE.Group();
+        const heatsinkBase = createCADPart(new THREE.BoxGeometry(6.5, 7.5, 3.5), 'metal', 'ssr');
+        ssrGroup.add(heatsinkBase);
+        for (let f = 0; f < 6; f++) {
+            const fin = createCADPart(new THREE.BoxGeometry(0.3, 7.5, 1.8), 'metal', 'ssr');
+            fin.position.set(-2.5 + f * 1.0, 0, -2.2);
+            ssrGroup.add(fin);
+        }
+        const ssrPuck = createCADPart(new THREE.BoxGeometry(5.0, 6.0, 1.4), 'dark', 'ssr');
+        ssrPuck.position.set(0, 0, 2.0);
+        ssrGroup.add(ssrPuck);
+
+        const ssrTermCoords = [[-1.8, 2.2, 2.8], [1.8, 2.2, 2.8], [-1.8, -2.2, 2.8], [1.8, -2.2, 2.8]];
+        ssrTermCoords.forEach(tc => {
+            const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.3, 8), materials.brassTerminal);
+            screw.position.set(...tc);
+            ssrGroup.add(screw);
+        });
+        ssrGroup.position.set(-11, 4.0, -8);
+        electricalGroup.add(ssrGroup);
+
+        // STM32 Industrial Microcontroller PLC Board
+        const plcGroup = new THREE.Group();
+        const plcPcb = new THREE.Mesh(new THREE.BoxGeometry(11, 0.3, 7), materials.pcbGreen);
+        plcGroup.add(plcPcb);
+
+        const header1 = createCADPart(new THREE.BoxGeometry(10, 0.8, 0.8), 'dark', 'plc');
+        header1.position.set(0, 0.5, 3.0);
+        const header2 = createCADPart(new THREE.BoxGeometry(10, 0.8, 0.8), 'dark', 'plc');
+        header2.position.set(0, 0.5, -3.0);
+        plcGroup.add(header1, header2);
+
+        const mcuChip = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.4, 2.0), materials.solidDarkMetal);
+        mcuChip.position.set(0, 0.3, 0);
+        plcGroup.add(mcuChip);
+
+        const plcLed = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), new THREE.MeshBasicMaterial({ color: 0x00f0ff }));
+        plcLed.position.set(-4, 0.3, 0);
+        plcGroup.add(plcLed);
+
+        plcGroup.position.set(0, 1.5, 4);
+        electricalGroup.add(plcGroup);
+
+        // 3× Motor Driver Modules (BTS7960 43A H-Bridges)
+        for (let d = 0; d < 3; d++) {
+            const drvGroup = new THREE.Group();
+            const drvHeat = createCADPart(new THREE.BoxGeometry(3.5, 4.0, 3.0), 'copper', 'drivers');
+            drvGroup.add(drvHeat);
+            const drvPcb = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.2, 3.2), materials.pcbGreen);
+            drvPcb.position.set(0, 2.1, 0);
+            drvGroup.add(drvPcb);
+            drvGroup.position.set(-16 + d * 5.2, 3.0, 4);
+            electricalGroup.add(drvGroup);
+        }
+
+        const duct1 = createCADPart(new THREE.BoxGeometry(42, 2.2, 2.2), 'dark');
+        duct1.position.set(0, 1.1, -1);
+        electricalGroup.add(duct1);
+
+        const gndStud = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 2.0, 12), materials.brassTerminal);
+        gndStud.position.set(-20, 1.5, -12);
+        electricalGroup.add(gndStud);
+
+        // --- 7.3. បណ្តាញខ្សែភ្លើង 3D លម្អិត ---
+        const wiringMasterGroup = new THREE.Group();
+        electricalGroup.add(wiringMasterGroup);
+
+        const wAC1_pts = [new THREE.Vector3(-22, 2, -12), new THREE.Vector3(-20, 2, -10), new THREE.Vector3(-18, 6, -8)];
+        wiringMasterGroup.add(create3DWire(wAC1_pts, materials.wireBrown, 'ac', 0.16, 'W-AC-01'));
+
+        const wAC2_pts = [new THREE.Vector3(-22, 2, -11), new THREE.Vector3(-20, 2, -9), new THREE.Vector3(-17, 6, -8)];
+        wiringMasterGroup.add(create3DWire(wAC2_pts, materials.wireBlue, 'ac', 0.16, 'W-AC-02'));
+
+        const wAC3_pts = [new THREE.Vector3(-18, 1, -8), new THREE.Vector3(-15, 1, -8), new THREE.Vector3(-12.8, 6, -5.2)];
+        wiringMasterGroup.add(create3DWire(wAC3_pts, materials.wireBrown, 'ac', 0.16, 'W-AC-04'));
+
+        const wHeaterLive_pts = [
+            new THREE.Vector3(-9.2, 6, -5.2),
+            new THREE.Vector3(-9, 2, -1),
+            new THREE.Vector3(0, 2, -1),
+            new THREE.Vector3(0, 25, -1),
+            new THREE.Vector3(0, 42, -0.5)
+        ];
+        wiringMasterGroup.add(create3DWire(wHeaterLive_pts, materials.wireBrown, 'ac', 0.18, 'W-AC-13'));
+
+        const wSmpsL_pts = [new THREE.Vector3(-18, 1, -7.5), new THREE.Vector3(0, 1.2, -1), new THREE.Vector3(7.5, 4.5, 0.2)];
+        wiringMasterGroup.add(create3DWire(wSmpsL_pts, materials.wireBrown, 'ac', 0.14, 'W-AC-07'));
+
+        const wSmpsN_pts = [new THREE.Vector3(-17, 1, -7.5), new THREE.Vector3(0, 1.0, -1), new THREE.Vector3(8.8, 4.5, 0.2)];
+        wiringMasterGroup.add(create3DWire(wSmpsN_pts, materials.wireBlue, 'ac', 0.14, 'W-AC-10'));
+
+        const wGnd1_pts = [new THREE.Vector3(-20, 1.5, -12), new THREE.Vector3(10.1, 4.5, 0.2)];
+        wiringMasterGroup.add(create3DWire(wGnd1_pts, materials.wireGreenYellow, 'ground', 0.14, 'W-GND-01'));
+
+        const wGnd2_pts = [new THREE.Vector3(-20, 1.5, -12), new THREE.Vector3(0, 48, 0)];
+        wiringMasterGroup.add(create3DWire(wGnd2_pts, materials.wireGreenYellow, 'ground', 0.14, 'W-GND-03'));
+
+        const wGnd3_pts = [new THREE.Vector3(-20, 1.5, -12), new THREE.Vector3(-22, -1, -12)];
+        wiringMasterGroup.add(create3DWire(wGnd3_pts, materials.wireGreenYellow, 'ground', 0.14, 'W-GND-02'));
+
+        const wDC1_pts = [new THREE.Vector3(14.2, 4.5, 0.2), new THREE.Vector3(6, 1.5, 2), new THREE.Vector3(-16, 4.5, 4)];
+        wiringMasterGroup.add(create3DWire(wDC1_pts, materials.wireRed, 'dc', 0.18, 'W-DC-03'));
+
+        const wDC2_pts = [new THREE.Vector3(11.5, 4.5, 0.2), new THREE.Vector3(6, 1.2, 2), new THREE.Vector3(-16, 4.5, 3.5)];
+        wiringMasterGroup.add(create3DWire(wDC2_pts, materials.wireBlack, 'dc', 0.18, 'W-DC-04'));
+
+        const wDC3_pts = [new THREE.Vector3(14.2, 4.5, 0.2), new THREE.Vector3(0, 1.5, 2), new THREE.Vector3(-10.8, 4.5, 4)];
+        wiringMasterGroup.add(create3DWire(wDC3_pts, materials.wireRed, 'dc', 0.18, 'W-DC-05'));
+
+        const wDC4_pts = [new THREE.Vector3(11.5, 4.5, 0.2), new THREE.Vector3(0, 1.2, 2), new THREE.Vector3(-10.8, 4.5, 3.5)];
+        wiringMasterGroup.add(create3DWire(wDC4_pts, materials.wireBlack, 'dc', 0.18, 'W-DC-06'));
+
+        const wDC5_pts = [new THREE.Vector3(14.2, 4.5, 0.2), new THREE.Vector3(-3, 1.5, 2), new THREE.Vector3(-5.6, 4.5, 4)];
+        wiringMasterGroup.add(create3DWire(wDC5_pts, materials.wireRed, 'dc', 0.18, 'W-DC-07'));
+
+        const wTC_pts = [
+            new THREE.Vector3(13.5, 51, 0),
+            new THREE.Vector3(18, 45, 0),
+            new THREE.Vector3(18, 10, -5),
+            new THREE.Vector3(0, 2, -1),
+            new THREE.Vector3(-10, 1, 10)
+        ];
+        wiringMasterGroup.add(create3DWire(wTC_pts, materials.wireYellow, 'sensor', 0.15, 'W-SIG-03'));
+
+        const wPidTrig_pts = [new THREE.Vector3(-10, 1, 10), new THREE.Vector3(-11, 2, -1), new THREE.Vector3(-11, 2.5, -5.2)];
+        wiringMasterGroup.add(create3DWire(wPidTrig_pts, materials.wireWhite, 'sensor', 0.12, 'W-SIG-01'));
+
+        const wEstop_pts = [new THREE.Vector3(15, 3, 12), new THREE.Vector3(10, 2, 8), new THREE.Vector3(-18, 1, -8)];
+        wiringMasterGroup.add(create3DWire(wEstop_pts, materials.wireWhite, 'estop', 0.14, 'W-ES-01'));
+
+        // --- 7.4. គ្រឿងបង្គុំមេកានិច (ម៉ូឌុល ០១ ដល់ ០៩) ---
+
+        // 1. ឡាវបញ្ចូលជីវម៉ាស (Hopper)
+        const hopperGroup = new THREE.Group();
+        const hopperGeo = new THREE.CylinderGeometry(13, 4, 15, 32);
+        const hopper = createCADPart(hopperGeo, 'metal', 'hopper');
+        hopper.position.y = 7.5;
+        hopperGroup.add(hopper);
+
+        const hopperValveGeo = new THREE.BoxGeometry(10, 1.2, 10);
+        const hopperValve = createCADPart(hopperValveGeo, 'dark', 'hopper');
+        hopperGroup.add(hopperValve);
+
+        hopperGroup.position.set(0, 46, 0);
+        hopperGroup.userData = { origPos: new THREE.Vector3(0, 46, 0), expPos: new THREE.Vector3(0, 68, 0) };
+        biocharAssembly.add(hopperGroup);
+        partsList.push(hopperGroup);
+
+        // 2. ឡដុតបំបែកកំដៅ (Carbonization Reactor)
+        const reactorGroup = new THREE.Group();
+        const reactorGeo = new THREE.CylinderGeometry(6, 6, 30, 32);
+        const reactor = createCADPart(reactorGeo, 'metal', 'retort');
+
+        const flangeGeo = new THREE.CylinderGeometry(7.6, 7.6, 1.2, 32);
+        const flangeTop = createCADPart(flangeGeo, 'dark', 'retort');
+        flangeTop.position.y = 15;
+        const flangeBot = createCADPart(flangeGeo, 'dark', 'retort');
+        flangeBot.position.y = -15;
+
+        for (let b = 0; b < 8; b++) {
+            const angle = (b * Math.PI * 2) / 8;
+            const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 2.0, 6), materials.ferruleSilver);
+            bolt.position.set(Math.cos(angle) * 6.8, 15.5, Math.sin(angle) * 6.8);
+            reactorGroup.add(bolt);
+        }
+
+        reactorGroup.add(reactor, flangeTop, flangeBot);
+        reactorGroup.position.set(0, 25, 0);
+        reactorGroup.userData = { origPos: new THREE.Vector3(0, 25, 0), expPos: new THREE.Vector3(0, 25, 0) };
+        biocharAssembly.add(reactorGroup);
+        partsList.push(reactorGroup);
+
+        // 5. អាវអ៊ីសូឡង់ទប់កំដៅ (Insulation Jacket)
+        const insulationGroup = new THREE.Group();
+        const insulationGeo = new THREE.CylinderGeometry(8.6, 8.6, 28, 32, 1, true);
+        const insulation = createCADPart(insulationGeo, 'metal', 'insulation');
+        const capGeo = new THREE.RingGeometry(6, 8.6, 32);
+        const capTop = createCADPart(capGeo, 'dark', 'insulation');
+        capTop.rotation.x = -Math.PI / 2;
+        capTop.position.y = 14;
+        const capBot = createCADPart(capGeo, 'dark', 'insulation');
+        capBot.rotation.x = Math.PI / 2;
+        capBot.position.y = -14;
+
+        insulationGroup.add(insulation, capTop, capBot);
+        insulationGroup.position.set(0, 25, 0);
+        insulationGroup.userData = { origPos: new THREE.Vector3(0, 25, 0), expPos: new THREE.Vector3(0, 25, 26) };
+        biocharAssembly.add(insulationGroup);
+        partsList.push(insulationGroup);
+
+        // 3. កងកំដៅសេរ៉ាមិច (Ceramic Band Heaters)
+        const heaterGroup = new THREE.Group();
+        const coilGeo = new THREE.TorusGeometry(6.3, 0.45, 16, 64);
+        for (let i = 0; i < 6; i++) {
+            const coil = createCADPart(coilGeo, 'heater', 'heaters');
+            coil.rotation.x = Math.PI / 2;
+            coil.position.y = -10 + (i * 3.5);
+            heaterGroup.add(coil);
+        }
+        heaterGroup.position.set(0, 25, 0);
+        heaterGroup.userData = { origPos: new THREE.Vector3(0, 25, 0), expPos: new THREE.Vector3(-22, 25, 0) };
+        biocharAssembly.add(heaterGroup);
+        partsList.push(heaterGroup);
+
+        // 4. សេនស័រវាស់កំដៅ (Thermocouple Probe)
+        const probeGroup = new THREE.Group();
+        const probeStem = createCADPart(new THREE.CylinderGeometry(0.3, 0.3, 12), 'metal', 'sensor');
+        probeStem.rotation.z = Math.PI / 2;
+        probeStem.position.x = 6;
+
+        const probeHead = createCADPart(new THREE.BoxGeometry(2, 2, 2), 'dark', 'sensor');
+        probeHead.position.x = 12.5;
+
+        const probeWire = createCADPart(new THREE.CylinderGeometry(0.12, 0.12, 12), 'dark', 'sensor');
+        probeWire.position.set(13.5, 6, 0);
+
+        probeGroup.add(probeStem, probeHead, probeWire);
+        probeGroup.position.set(0, 20, 0);
+        probeGroup.userData = { origPos: new THREE.Vector3(0, 20, 0), expPos: new THREE.Vector3(18, 20, 0) };
+        biocharAssembly.add(probeGroup);
+        partsList.push(probeGroup);
+
+        // 6. បំពង់បញ្ចេញឧស្ម័ន និងធុងទឹកបញ្ចុះកំដៅ (Exhaust / Condenser)
+        const exhaustGroup = new THREE.Group();
+        const p1 = createCADPart(new THREE.CylinderGeometry(1, 1, 8), 'metal', 'exhaust');
+        p1.position.set(4, 40, 0);
+        const p2 = createCADPart(new THREE.CylinderGeometry(1, 1, 20), 'metal', 'exhaust');
+        p2.rotation.z = Math.PI / 2;
+        p2.position.set(14, 43, 0);
+        const p3 = createCADPart(new THREE.CylinderGeometry(1, 1, 10), 'metal', 'exhaust');
+        p3.position.set(23.5, 39, 0);
+
+        const spiralPoints = [];
+        for (let i = 0; i <= 100; i++) {
+            const t = i / 100;
+            const angle = t * Math.PI * 2 * 6;
+            const y = 35 - (t * 20);
+            spiralPoints.push(new THREE.Vector3(23.5 + Math.cos(angle) * 3, y, Math.sin(angle) * 3));
+        }
+        const spiralCurve = new THREE.CatmullRomCurve3(spiralPoints);
+        const condenserGeo = new THREE.TubeGeometry(spiralCurve, 100, 0.8, 8, false);
+        const condenserCoil = createCADPart(condenserGeo, 'copper', 'exhaust');
+
+        const jarGeo = new THREE.CylinderGeometry(2.5, 2.5, 6, 16);
+        const woodVinegarJar = new THREE.Mesh(jarGeo, materials.acrylicClear);
+        woodVinegarJar.position.set(23.5, 11, 0);
+
+        const liquidGeo = new THREE.CylinderGeometry(2.3, 2.3, 3.5, 16);
+        const vinegarLiquid = new THREE.Mesh(liquidGeo, new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.1, transparent: true, opacity: 0.85 }));
+        vinegarLiquid.position.set(23.5, 9.8, 0);
+
+        exhaustGroup.add(p1, p2, p3, condenserCoil, woodVinegarJar, vinegarLiquid);
+        exhaustGroup.userData = { origPos: new THREE.Vector3(0, 0, 0), expPos: new THREE.Vector3(26, 10, 0) };
+        biocharAssembly.add(exhaustGroup);
+        partsList.push(exhaustGroup);
+
+        // 7. ម៉ាស៊ីនកិនធ្យូង (Grinder / Crusher)
+        const grinderGroup = new THREE.Group();
+        const grinderHousing = createCADPart(new THREE.BoxGeometry(16, 10, 16), 'metal', 'crusher');
+        grinderGroup.add(grinderHousing);
+
+        const shaftsGroup = new THREE.Group();
+        for (let j = 0; j < 2; j++) {
+            const shaft = new THREE.Group();
+            const axis = createCADPart(new THREE.CylinderGeometry(0.8, 0.8, 18), 'dark', 'crusher');
+            axis.rotation.x = Math.PI / 2;
+            shaft.add(axis);
+
+            for (let i = 0; i < 6; i++) {
+                const bladeGeo = new THREE.CylinderGeometry(3, 3, 0.5, 6);
+                const blade = createCADPart(bladeGeo, 'dark', 'crusher');
+                blade.rotation.x = Math.PI / 2;
+                blade.rotation.y = (i * Math.PI / 6);
+                blade.position.z = -7 + (i * 2.8);
+                shaft.add(blade);
+            }
+            shaft.position.x = j === 0 ? -3 : 3;
+            shaft.userData.isGrinderShaft = true;
+            shaft.userData.direction = j === 0 ? 1 : -1;
+            shaftsGroup.add(shaft);
+        }
+        grinderGroup.add(shaftsGroup);
+        grinderGroup.userData.animParts = shaftsGroup.children;
+        grinderGroup.position.set(0, 4, 0);
+        grinderGroup.userData.origPos = new THREE.Vector3(0, 4, 0);
+        grinderGroup.userData.expPos = new THREE.Vector3(0, 4, -26);
+        biocharAssembly.add(grinderGroup);
+        partsList.push(grinderGroup);
+
+        // 8. ធុងលាយម្សៅធ្យូង និងកាវ (Mixer Chamber)
+        const mixerGroup = new THREE.Group();
+        const mixerHousing = createCADPart(new THREE.CylinderGeometry(8, 8, 12, 32), 'metal', 'mixer');
+        mixerGroup.add(mixerHousing);
+
+        const mixerShaft = new THREE.Group();
+        const mAxis = createCADPart(new THREE.CylinderGeometry(1, 1, 14), 'dark', 'mixer');
+        mixerShaft.add(mAxis);
+
+        for (let i = 0; i < 4; i++) {
+            const paddle = createCADPart(new THREE.BoxGeometry(12, 1.5, 0.5), 'dark', 'mixer');
+            paddle.position.y = -3 + (i * 2);
+            paddle.rotation.y = (i * Math.PI / 4);
+            paddle.rotation.x = 0.2;
+            mixerShaft.add(paddle);
+        }
+        mixerGroup.add(mixerShaft);
+        mixerGroup.userData.animParts = [mixerShaft];
+        mixerGroup.position.set(0, -8, 0);
+        mixerGroup.userData.origPos = new THREE.Vector3(0, -8, 0);
+        mixerGroup.userData.expPos = new THREE.Vector3(0, -16, -26);
+        biocharAssembly.add(mixerGroup);
+        partsList.push(mixerGroup);
+
+        // 9. ម៉ាស៊ីនសង្កត់វីសស្ពីរ៉ាល់ និងបាដាងទប់កម្លាំងរុញ SKF 51105 (Auger Screw Press)
+        const augerGroup = new THREE.Group();
+        const augerPipe = createCADPart(new THREE.CylinderGeometry(4, 4, 25, 32), 'metal', 'press');
+        augerPipe.rotation.z = -Math.PI / 2;
+        augerPipe.position.x = 12.5;
+        augerGroup.add(augerPipe);
+
+        const dieHead = createCADPart(new THREE.CylinderGeometry(4.5, 1.5, 4, 32), 'dark', 'press');
+        dieHead.rotation.z = -Math.PI / 2;
+        dieHead.position.x = 27;
+        augerGroup.add(dieHead);
+
+        const thrustBearingRing = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.45, 16, 32), materials.ferruleSilver);
+        thrustBearingRing.rotation.y = Math.PI / 2;
+        thrustBearingRing.position.set(-0.8, 0, 0);
+        augerGroup.add(thrustBearingRing);
+
+        const augerScrewGroup = new THREE.Group();
+        const screwCore = createCADPart(new THREE.CylinderGeometry(1.5, 1.5, 26, 16), 'dark', 'press');
+        screwCore.rotation.z = -Math.PI / 2;
+        screwCore.position.x = 12;
+        augerScrewGroup.add(screwCore);
+
+        const threadPoints = [];
+        for (let i = 0; i <= 200; i++) {
+            const t = i / 200;
+            const angle = t * Math.PI * 2 * 10;
+            const x = -1 + (t * 26);
+            const radius = 3.5 - (t * 0.5);
+            threadPoints.push(new THREE.Vector3(x, Math.cos(angle) * radius, Math.sin(angle) * radius));
+        }
+        const threadCurve = new THREE.CatmullRomCurve3(threadPoints);
+        const threadGeo = new THREE.TubeGeometry(threadCurve, 200, 0.45, 4, false);
+        const threadPart = createCADPart(threadGeo, 'metal', 'press');
+        augerScrewGroup.add(threadPart);
+
+        augerGroup.add(augerScrewGroup);
+        augerGroup.userData.animParts = [augerScrewGroup];
+        augerGroup.position.set(0, -18, 0);
+        augerGroup.userData.origPos = new THREE.Vector3(0, -18, 0);
+        augerGroup.userData.expPos = new THREE.Vector3(0, -28, 0);
+        biocharAssembly.add(augerGroup);
+        partsList.push(augerGroup);
+
+        // --- 7.5. ភាគល្អិតដំណើរការ និងដុំធ្យូងជីវម៉ាសផលិតរួច ---
+        const biomassGroup = new THREE.Group();
+        for (let i = 0; i < 20; i++) {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), materials.matBiomass);
+            mesh.position.set((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
+            biomassGroup.add(mesh);
+        }
+        biomassGroup.position.set(0, 60, 0);
+        biomassGroup.scale.set(0, 0, 0);
+        biocharAssembly.add(biomassGroup);
+
+        const vaporGroup = new THREE.Group();
+        for (let i = 0; i < 14; i++) {
+            const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.65, 8, 8), materials.matVapor);
+            mesh.position.set((Math.random() - 0.5) * 2, i * 1.5, (Math.random() - 0.5) * 2);
+            vaporGroup.add(mesh);
+        }
+        vaporGroup.position.set(4, 40, 0);
+        vaporGroup.scale.set(0, 0, 0);
+        biocharAssembly.add(vaporGroup);
+
+        const charGroup = new THREE.Group();
+        for (let i = 0; i < 18; i++) {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), materials.matBiochar);
+            mesh.position.set((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 6);
+            charGroup.add(mesh);
+        }
+        charGroup.position.set(0, 10, 0);
+        charGroup.scale.set(0, 0, 0);
+        biocharAssembly.add(charGroup);
+
+        const briquette = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 7, 16), materials.matBiochar);
+        briquette.rotation.z = -Math.PI / 2;
+        briquette.position.set(26, -18, 0);
+        briquette.scale.set(0, 0, 0);
+        biocharAssembly.add(briquette);
+
+        /* =========================================================================
+           ៨. ការបញ្ជាផ្ទាំងអន្តរកម្ម ការតាមដានសៀគ្វី ផ្ទាំងទំព័រ និងប្រអប់ព័ត៌មាន
+           ========================================================================= */
+        const tabContentArea = document.getElementById('tab-content-area');
+        let currentTab = 'mech';
+
+        function switchTab(tabId) {
+            audio.playClick();
+            currentTab = tabId;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            const activeBtn = document.getElementById('tab-' + tabId);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            tabContentArea.innerHTML = '';
+
+            if (tabId === 'mech') {
+                MECHANICAL_SUBSYSTEMS.forEach(item => {
+                    const el = document.createElement('div');
+                    el.className = 'spec-item';
+                    el.id = 'bom-item-' + item.id;
+                    el.onclick = () => openModal(item);
+                    el.innerHTML = `
+                        <div class="spec-title">
+                            <span>${item.name}</span>
+                            <span class="text-xs text-[#00f0ff] font-mono bg-[#00f0ff]/10 px-2 py-0.5 rounded border border-[#00f0ff]/25 shrink-0">របៀបផលិត &#8594;</span>
+                        </div>
+                        <div class="spec-desc">${item.short}</div>
+                    `;
+                    tabContentArea.appendChild(el);
+                });
+            } else if (tabId === 'elec') {
+                ELECTRICAL_SUBSYSTEMS.forEach(elec => {
+                    const el = document.createElement('div');
+                    el.className = 'spec-item';
+                    el.onclick = () => openElecModal(elec);
+                    el.innerHTML = `
+                        <div class="spec-title">
+                            <span>${elec.tag}: ${elec.name}</span>
+                            <span class="text-xs text-amber-400 font-mono bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/25 shrink-0">ការតខ្សែ &#8594;</span>
+                        </div>
+                        <div class="spec-desc"><strong>ម៉ូដែល៖</strong> ${elec.model} | <strong>កម្រិតថាមពល៖</strong> ${elec.rating}</div>
+                    `;
+                    tabContentArea.appendChild(el);
+                });
+            } else if (tabId === 'wire') {
+                let tableHtml = `
+                    <div class="overflow-x-auto max-h-[70vh]">
+                        <table class="wire-table">
+                            <thead>
+                                <tr>
+                                    <th>លេខកូដ</th>
+                                    <th>ចំណុចចាប់ផ្តើម &#8594; ចំណុចភ្ជាប់</th>
+                                    <th>ទំហំ / ពណ៌ខ្សែ</th>
+                                    <th>ក្បាលគៀប</th>
+                                    <th>តង់ស្យុង / តួនាទី</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                POINT_TO_POINT_WIRING.forEach(w => {
+                    let colorHex = '#cbd5e1';
+                    if (w.color.includes('Brown') || w.color.includes('ត្នោត')) colorHex = '#8b4513';
+                    else if (w.color.includes('Blue') || w.color.includes('ខៀវ')) colorHex = '#0284c7';
+                    else if (w.color.includes('Green') || w.color.includes('បៃតង')) colorHex = '#84cc16';
+                    else if (w.color.includes('Red') || w.color.includes('ក្រហម')) colorHex = '#ef4444';
+                    else if (w.color.includes('Black') || w.color.includes('ខ្មៅ')) colorHex = '#475569';
+                    else if (w.color.includes('Yellow') || w.color.includes('លឿង')) colorHex = '#eab308';
+                    else if (w.color.includes('Orange') || w.color.includes('ទឹកក្រូច')) colorHex = '#f97316';
+                    else if (w.color.includes('Purple') || w.color.includes('ស្វាយ')) colorHex = '#a855f7';
+
+                    tableHtml += `
+                        <tr onclick="highlightWireById('${w.id}')" class="cursor-pointer">
+                            <td class="font-bold text-[#00f0ff] whitespace-nowrap">${w.id}</td>
+                            <td>${w.from}<br><span class="text-slate-300">&#8594; ${w.to}</span></td>
+                            <td><span class="wire-badge" style="background-color: ${colorHex}"></span>${w.size}<br><span class="text-xs text-slate-300">${w.color}</span></td>
+                            <td>${w.ferrule}</td>
+                            <td><span class="text-xs text-amber-300 font-semibold">${w.volt} (${w.current})</span><br>${w.func}</td>
+                        </tr>
+                    `;
+                });
+                tableHtml += `</tbody></table></div>`;
+                tabContentArea.innerHTML = tableHtml;
+            } else if (tabId === 'sop') {
+                tabContentArea.innerHTML = `
+                    <div class="space-y-4 text-sm text-slate-200 leading-relaxed">
+                        <div class="bg-black/35 p-3.5 rounded-lg border border-slate-800">
+                            <h4 class="font-bold text-[#00f0ff] font-orbitron text-sm mb-2">១. នីតិវិធីរៀបចំវត្ថុធាតុដើមជីវម៉ាស (Biomass Preparation SOP)</h4>
+                            <ul class="space-y-2 list-disc pl-5 text-slate-200">
+                                ${SOP_MANUAL.feedstockPrep.map(s => `<li>${s}</li>`).join('')}
+                            </ul>
+                        </div>
+                        <div class="bg-black/35 p-3.5 rounded-lg border border-slate-800">
+                            <h4 class="font-bold text-orange-400 font-orbitron text-sm mb-2">២. នីតិវិធីដុតបំបែកកំដៅគ្មានអុកស៊ីសែន (Pyrolysis Thermal Cycle SOP)</h4>
+                            <ul class="space-y-2 list-disc pl-5 text-slate-200">
+                                ${SOP_MANUAL.pyrolysisRun.map(s => `<li>${s}</li>`).join('')}
+                            </ul>
+                        </div>
+                        <div class="bg-black/35 p-3.5 rounded-lg border border-slate-800">
+                            <h4 class="font-bold text-amber-300 font-orbitron text-sm mb-2">៣. រូបមន្តកូរកាវម្សៅមីធម្មជាតិ (Cassava Starch Binder Recipe)</h4>
+                            <ul class="space-y-2 list-disc pl-5 text-slate-200">
+                                ${SOP_MANUAL.binderRecipe.map(s => `<li>${s}</li>`).join('')}
+                            </ul>
+                        </div>
+                        <div class="bg-black/35 p-3.5 rounded-lg border border-slate-800">
+                            <h4 class="font-bold text-cyan-300 font-orbitron text-sm mb-2">៤. នីតិវិធីលាយ និងសង្កត់ចេញជាដុំធ្យូង (Mixing & Extrusion SOP)</h4>
+                            <ul class="space-y-2 list-disc pl-5 text-slate-200">
+                                ${SOP_MANUAL.mixingAndPressing.map(s => `<li>${s}</li>`).join('')}
+                            </ul>
+                        </div>
+                        <div class="bg-black/35 p-3.5 rounded-lg border border-slate-800">
+                            <h4 class="font-bold text-green-400 font-orbitron text-sm mb-2">៥. ការហាលសម្ងួត និងស្តង់ដារធ្វើតេស្តគុណភាព (Curing & Drop Test)</h4>
+                            <ul class="space-y-2 list-disc pl-5 text-slate-200">
+                                ${SOP_MANUAL.curingAndQualityCheck.map(s => `<li>${s}</li>`).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            } else if (tabId === 'sim') {
+                const simBox = document.createElement('div');
+                simBox.className = 'space-y-4 p-1';
+                simBox.innerHTML = `
+                    <div class="bg-gradient-to-br from-[#0c182c] to-[#080f1e] p-4 rounded-xl border border-[#00f0ff]/35 shadow-lg">
+                        <div class="flex justify-between items-center mb-2.5 gap-2 flex-wrap">
+                            <span class="font-orbitron text-sm font-bold text-white">កម្មវិធីសាកល្បងផលិតកម្មធ្យូងជីវម៉ាស</span>
+                            <span class="text-xs font-mono text-[#00f0ff] bg-[#00f0ff]/10 px-2.5 py-0.5 rounded border border-[#00f0ff]/25">គណនាផ្ទាល់</span>
+                        </div>
+                        <p class="text-xs text-slate-200 mb-3.5 leading-relaxed">
+                            គណនាសាកល្បងទិន្នផលប្រតិកម្ម កម្រិតកាបូនថេរ បរិមាណធ្យូងអនាម័យ និងចំណូលសុទ្ធប្រចាំថ្ងៃ ទៅតាមប្រភេទវត្ថុធាតុដើមជីវម៉ាសនៅកម្ពុជា និងកម្រិតសីតុណ្ហភាព។
+                        </p>
+
+                        <!-- Controls -->
+                        <div class="space-y-3.5">
+                            <div>
+                                <label class="text-xs font-mono text-slate-300 block mb-1.5">ប្រភេទវត្ថុធាតុដើមជីវម៉ាស៖</label>
+                                <select id="sim-feedstock-select" onchange="runLiveBiocharSim()" class="w-full bg-[#050914] border border-[#00f0ff]/35 rounded-lg p-2.5 text-xs text-white font-mono outline-none">
+                                    <option value="rice_husk" selected>អង្កាមស្រូវ (ស៊ីលីកាខ្ពស់, កាបូនថេរ 38%)</option>
+                                    <option value="coconut_shell">ត្រឡោកដូង (កាបូនហាប់ណែន, កាបូនថេរ 45%)</option>
+                                    <option value="sawdust">កម្ទេចឈើ / អាចម៍រណារ (លីញីនខ្ពស់, កាបូនថេរ 40%)</option>
+                                    <option value="corn_cob">ស្នូលពោត / ចំបើង (សារធាតុងាយហើរខ្ពស់, កាបូនថេរ 32%)</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-xs font-mono text-slate-200 mb-1">
+                                    <span>សីតុណ្ហភាពស្នូលឡដុត៖</span>
+                                    <span id="sim-disp-temp" class="text-[#00f0ff] font-bold">387 °C</span>
+                                </div>
+                                <input type="range" id="sim-slider-temp" min="300" max="750" step="5" value="387" oninput="runLiveBiocharSim()" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-[#00f0ff]">
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-xs font-mono text-slate-200 mb-1">
+                                    <span>បរិមាណជីវម៉ាសបញ្ចូលប្រចាំថ្ងៃ៖</span>
+                                    <span id="sim-disp-feed" class="text-amber-400 font-bold">50 kg / ថ្ងៃ</span>
+                                </div>
+                                <input type="range" id="sim-slider-feed" min="10" max="150" step="5" value="50" oninput="runLiveBiocharSim()" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400">
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-xs font-mono text-slate-200 mb-1">
+                                    <span>សមាមាត្រកាវម្សៅមី៖</span>
+                                    <span id="sim-disp-binder" class="text-green-400 font-bold">8.0 %</span>
+                                </div>
+                                <input type="range" id="sim-slider-binder" min="4" max="15" step="0.5" value="8" oninput="runLiveBiocharSim()" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-green-400">
+                            </div>
+                        </div>
+
+                        <!-- Live Fractions -->
+                        <div class="mt-4 pt-3.5 border-t border-slate-700/60">
+                            <div class="flex justify-between text-xs font-mono text-slate-300 mb-1.5 flex-wrap gap-1">
+                                <span>ផលធៀបបំបែកម៉ាសប្រតិកម្ម</span>
+                                <span id="sim-disp-split" class="text-[#00f0ff] font-bold">ធ្យូង៖ 34% | ទឹកខ្មេះឈើ៖ 42% | ឧស្ម័ន៖ 24%</span>
+                            </div>
+                            <div class="w-full h-3.5 rounded-full overflow-hidden flex border border-slate-600">
+                                <div id="sim-bar-char" class="bg-emerald-500 h-full transition-all duration-150" style="width:34%;"></div>
+                                <div id="sim-bar-oil" class="bg-amber-500 h-full transition-all duration-150" style="width:42%;"></div>
+                                <div id="sim-bar-gas" class="bg-sky-500 h-full transition-all duration-150" style="width:24%;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Output Cards -->
+                        <div class="mt-4 space-y-2 font-mono text-xs">
+                            <div class="flex justify-between bg-black/45 p-2.5 rounded border border-white/10">
+                                <span class="text-slate-300">ទិន្នផលធ្យូងជីវម៉ាសប្រចាំថ្ងៃ៖</span>
+                                <strong id="sim-res-char" class="text-white">17.0 kg</strong>
+                            </div>
+                            <div class="flex justify-between bg-black/45 p-2.5 rounded border border-white/10">
+                                <span class="text-slate-300">ទឹកខ្មេះឈើប្រមូលបាន៖</span>
+                                <strong id="sim-res-vinegar" class="text-amber-400">16.8 លីត្រ</strong>
+                            </div>
+                            <div class="flex justify-between bg-black/45 p-2.5 rounded border border-white/10">
+                                <span class="text-slate-300">ទិន្នផលដុំធ្យូងអនាម័យសម្រេច៖</span>
+                                <strong id="sim-res-briquettes" class="text-emerald-400">18.4 kg</strong>
+                            </div>
+                            <div class="flex justify-between bg-black/45 p-2.5 rounded border border-white/10">
+                                <span class="text-slate-300">កម្រិតកាបូនថេរ (Fixed Carbon)៖</span>
+                                <strong id="sim-res-fixedc" class="text-cyan-400">78.4 %</strong>
+                            </div>
+                            <div class="flex justify-between bg-black/45 p-2.5 rounded border border-white/10">
+                                <span class="text-slate-300">ថាមពលកំដៅនៃដុំធ្យូង៖</span>
+                                <strong id="sim-res-energy" class="text-white">24.2 MJ/kg</strong>
+                            </div>
+                            <div class="flex justify-between bg-emerald-950/45 p-2.5 rounded border border-emerald-500/35">
+                                <span class="text-emerald-300 font-bold">ចំណូលសុទ្ធប្រចាំថ្ងៃ៖</span>
+                                <strong id="sim-res-profit" class="text-emerald-400 font-bold">+$40.14 / ថ្ងៃ</strong>
+                            </div>
+                            <div class="flex justify-between bg-cyan-950/45 p-2.5 rounded border border-cyan-500/35">
+                                <span class="text-cyan-300 font-bold">រយៈពេលរួចដើម (Payback)៖</span>
+                                <strong id="sim-res-payback" class="text-cyan-400 font-bold">1.9 ខែ</strong>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                tabContentArea.appendChild(simBox);
+                runLiveBiocharSim();
+            }
+        }
+
+        // Initialize with mechanical tab
+        switchTab('mech');
+
+        // Modal Handlers
+        const modal = document.getElementById('fabrication-modal');
+
+        function openModal(spec) {
+            audio.playClick();
+            document.getElementById('card-part-number').textContent = spec.num;
+            document.getElementById('card-name').textContent = spec.name;
+            document.getElementById('card-role-desc').textContent = spec.desc;
+            document.getElementById('card-material').textContent = spec.material;
+            document.getElementById('card-dims').textContent = spec.dims;
+            document.getElementById('card-tools').textContent = spec.tools;
+            document.getElementById('card-source').textContent = spec.source;
+            document.getElementById('card-warning').textContent = spec.warning;
+
+            const stepsContainer = document.getElementById('card-steps');
+            stepsContainer.innerHTML = '';
+            spec.steps.forEach(stepHtml => {
+                const div = document.createElement('div');
+                div.innerHTML = stepHtml;
+                stepsContainer.appendChild(div);
+            });
+
+            modal.classList.add('open');
+            const infoBackdrop = document.getElementById('info-modal-backdrop');
+            if (infoBackdrop) { infoBackdrop.classList.add('visible'); infoBackdrop.setAttribute('aria-hidden','false'); }
+
+            if (spec.focusTarget) {
+                gsap.to(controls.target, { x: spec.focusTarget.x, y: spec.focusTarget.y, z: spec.focusTarget.z, duration: 1.2 });
+            }
+        }
+
+        function openElecModal(elec) {
+            audio.playClick();
+            document.getElementById('card-part-number').textContent = elec.tag;
+            document.getElementById('card-name').textContent = elec.name;
+            document.getElementById('card-role-desc').textContent = elec.desc;
+            document.getElementById('card-material').textContent = elec.model;
+            document.getElementById('card-dims').textContent = elec.rating;
+            document.getElementById('card-tools').textContent = "ដង្កាប់បកខ្សែភ្លើង, ដង្កាប់គៀបក្បាលខ្សែ (Ferrule crimper), ឧបករណ៍វាស់ភ្លើងឌីជីថល";
+            document.getElementById('card-source').textContent = elec.mounting;
+            document.getElementById('card-warning').textContent = elec.installTips;
+
+            const stepsContainer = document.getElementById('card-steps');
+            stepsContainer.innerHTML = `<h5 class="text-amber-300 font-mono font-bold mb-1.5">ការតភ្ជាប់តាមជើងគោល (TERMINAL PIN CONNECTIONS)៖</h5>`;
+            elec.terminals.forEach(t => {
+                const div = document.createElement('div');
+                div.className = 'py-1';
+                div.innerHTML = `<span class="text-[#00f0ff] font-bold">[${t.pin}]៖</span> ${t.func} <span class="text-slate-300 font-mono">(${t.color})</span>`;
+                stepsContainer.appendChild(div);
+            });
+
+            modal.classList.add('open');
+            const infoBackdrop = document.getElementById('info-modal-backdrop');
+            if (infoBackdrop) { infoBackdrop.classList.add('visible'); infoBackdrop.setAttribute('aria-hidden','false'); }
+            focusComponent('electronics');
+        }
+
+        function closeModal() {
+            audio.playClick();
+            modal.classList.remove('open');
+            const infoBackdrop = document.getElementById('info-modal-backdrop');
+            if (infoBackdrop) { infoBackdrop.classList.remove('visible'); infoBackdrop.setAttribute('aria-hidden','true'); }
+        }
+
+        document.getElementById('info-modal-backdrop')?.addEventListener('click', closeModal);
+
+        // Circuit Tracing Logic
+        let activeTraceCircuit = 'all';
+        const CIRCUIT_LABELS_KH = {
+            all: 'បណ្តាញខ្សែភ្លើងទាំងអស់',
+            ac: 'ភ្លើងមេ 220V AC និងឧបករណ៍កំដៅ',
+            dc: 'បណ្តាញម៉ូទ័រ 24V DC',
+            sensor: 'សេនស័រ K-Type និងប្រព័ន្ធ PID',
+            estop: 'សៀគ្វីប៊ូតុងសុវត្ថិភាព E-Stop',
+            ground: 'ប្រព័ន្ធខ្សែដីសុវត្ថិភាព (PE)'
+        };
+
+        function traceCircuit(circuitName) {
+            audio.playClick();
+            activeTraceCircuit = circuitName;
+            document.querySelectorAll('.btn-trace').forEach(b => b.classList.remove('active'));
+            const btn = document.getElementById('trace-' + circuitName);
+            if (btn) btn.classList.add('active');
+
+            wireHarnessList.forEach(wire => {
+                if (circuitName === 'all') {
+                    wire.visible = true;
+                    wire.material = wire.userData.origMat;
+                } else if (wire.userData.circuit === circuitName) {
+                    wire.visible = true;
+                    wire.material = wire.userData.origMat;
+                } else {
+                    wire.visible = false;
+                }
+            });
+
+            const khLabel = CIRCUIT_LABELS_KH[circuitName] || circuitName.toUpperCase();
+            document.getElementById('cycle-detail').textContent = `កំពុងតាមដានសៀគ្វី៖ ${khLabel} (បង្ហាញខ្សែភ្លើងដែលពាក់ព័ន្ធ)`;
+        }
+
+        function highlightWireById(wireId) {
+            audio.playClick();
+            wireHarnessList.forEach(w => {
+                if (w.userData.wireId === wireId) {
+                    w.visible = true;
+                    w.scale.set(1.4, 1.4, 1.4);
+                    gsap.to(w.scale, { x: 1, y: 1, z: 1, duration: 0.8 });
+                }
+            });
+        }
+
+        // Display Mode Switching
+        const btnXray = document.getElementById('btn-xray');
+        const btnSolid = document.getElementById('btn-solid');
+        const btnExplode = document.getElementById('btn-explode');
+        const btnAssemble = document.getElementById('btn-assemble');
+        const btnChassis = document.getElementById('btn-chassis-toggle');
+
+        let isExploded = false;
+        let isChassisOpen = false;
+
+        function setDisplayMode(mode) {
+            biocharAssembly.traverse((child) => {
+                if (child.isMesh && child.userData.solidMat) {
+                    if (mode === 'xray') {
+                        child.material = child.userData.xrayMat;
+                        if (child.children[0] && child.children[0].isLineSegments) child.children[0].material.opacity = 0.35;
+                    } else {
+                        child.material = child.userData.solidMat;
+                        if (child.children[0] && child.children[0].isLineSegments) child.children[0].material.opacity = 0.85;
+                    }
+                }
+            });
+            if (mode === 'xray') {
+                btnXray.classList.add('active');
+                btnSolid.classList.remove('active');
+            } else {
+                btnSolid.classList.add('active');
+                btnXray.classList.remove('active');
+            }
+        }
+
+        btnXray.addEventListener('click', () => setDisplayMode('xray'));
+        btnSolid.addEventListener('click', () => setDisplayMode('solid'));
+
+        btnChassis.addEventListener('click', () => {
+            audio.playClick();
+            isChassisOpen = !isChassisOpen;
+            if (chassisGroup.userData.frontPanel) {
+                chassisGroup.userData.frontPanel.visible = !isChassisOpen;
+            }
+            btnChassis.classList.toggle('active', isChassisOpen);
+        });
+
+        function animateExplosion(direction) {
+            const duration = 1.3;
+            const ease = "power2.inOut";
+
+            partsList.forEach(part => {
+                const target = direction === 'explode' ? part.userData.expPos : part.userData.origPos;
+                gsap.to(part.position, { x: target.x, y: target.y, z: target.z, duration: duration, ease: ease });
+            });
+        }
+
+        btnExplode.addEventListener('click', () => {
+            audio.playClick();
+            if (!isExploded) {
+                isExploded = true;
+                btnExplode.classList.add('hidden');
+                btnAssemble.classList.remove('hidden');
+                animateExplosion('explode');
+                gsap.to(camera.position, { x: 180, y: 105, z: 180, duration: 1.5 });
+            }
+        });
+
+        btnAssemble.addEventListener('click', () => {
+            audio.playClick();
+            if (isExploded) {
+                isExploded = false;
+                btnAssemble.classList.add('hidden');
+                btnExplode.classList.remove('hidden');
+                animateExplosion('assemble');
+                gsap.to(camera.position, { x: 135, y: 90, z: 135, duration: 1.5 });
+            }
+        });
+
+        // Camera Focus Points
+        function focusComponent(target) {
+            audio.playClick();
+            if (target === 'retort') {
+                gsap.to(camera.position, { x: 0, y: 40, z: 75, duration: 1.2 });
+                gsap.to(controls.target, { x: 0, y: 25, z: 0, duration: 1.2 });
+            } else if (target === 'electronics') {
+                gsap.to(camera.position, { x: 0, y: -8, z: 50, duration: 1.2 });
+                gsap.to(controls.target, { x: 0, y: -22, z: 0, duration: 1.2 });
+                if (chassisGroup.userData.frontPanel) chassisGroup.userData.frontPanel.visible = false;
+                btnChassis.classList.add('active');
+            } else if (target === 'crusher') {
+                gsap.to(camera.position, { x: 0, y: 15, z: 45, duration: 1.2 });
+                gsap.to(controls.target, { x: 0, y: 4, z: 0, duration: 1.2 });
+            } else if (target === 'press') {
+                gsap.to(camera.position, { x: 35, y: -5, z: 45, duration: 1.2 });
+                gsap.to(controls.target, { x: 15, y: -18, z: 0, duration: 1.2 });
+            } else if (target === 'panel') {
+                gsap.to(camera.position, { x: -10, y: -5, z: 40, duration: 1.2 });
+                gsap.to(controls.target, { x: -10, y: -15, z: 15, duration: 1.2 });
+            } else if (target === 'reset') {
+                closeModal();
+                gsap.to(camera.position, { x: 135, y: 90, z: 135, duration: 1.2 });
+                gsap.to(controls.target, { x: 0, y: 15, z: 0, duration: 1.2 });
+                if (chassisGroup.userData.frontPanel) chassisGroup.userData.frontPanel.visible = true;
+                btnChassis.classList.remove('active');
+            }
+        }
+
+        // Raycasting selection on click
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        window.addEventListener('pointerdown', (e) => {
+            if (e.target.closest('.interactive')) return;
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(biocharAssembly.children, true);
+
+            if (intersects.length > 0) {
+                let obj = intersects[0].object;
+                while (obj && !obj.userData.specId && !obj.userData.wireId && obj.parent) {
+                    obj = obj.parent;
+                }
+                if (obj && obj.userData.specId) {
+                    const foundMech = MECHANICAL_SUBSYSTEMS.find(s => s.id === obj.userData.specId);
+                    if (foundMech) openModal(foundMech);
+                    const foundElec = ELECTRICAL_SUBSYSTEMS.find(e => e.id === obj.userData.specId);
+                    if (foundElec) openElecModal(foundElec);
+                } else if (obj && obj.userData.wireId) {
+                    highlightWireById(obj.userData.wireId);
+                    switchTab('wire');
+                }
+            }
+        });
+
+        /* =========================================================================
+           ៩. ចលនាសាកល្បងដំណើរការខ្សែសង្វាក់ផលិតកម្ម (PROCESS SIMULATION KINEMATICS)
+           ========================================================================= */
+        let isSimulating = false;
+        let processTimeline = null;
+        let activeLabelTarget = null;
+        const processLabel = document.getElementById('process-label');
+        const btnSimulate = document.getElementById('btn-simulate');
+
+        function showLabel(text, targetPosition) {
+            processLabel.innerText = text;
+            processLabel.style.opacity = '1';
+            activeLabelTarget = targetPosition;
+        }
+        function hideLabel() {
+            processLabel.style.opacity = '0';
+            activeLabelTarget = null;
+        }
+
+        function runProcessSequence() {
+            if (processTimeline) processTimeline.kill();
+
+            biomassGroup.position.set(0, 60, 0); biomassGroup.scale.set(0, 0, 0);
+            vaporGroup.position.set(4, 40, 0); vaporGroup.scale.set(0, 0, 0);
+            charGroup.position.set(0, 10, 0); charGroup.scale.set(0, 0, 0);
+            briquette.position.set(26, -18, 0); briquette.scale.set(0, 0, 0);
+
+            const progressBar = document.getElementById('cycle-progress-bar');
+            const stageName = document.getElementById('cycle-stage-name');
+            const stageDetail = document.getElementById('cycle-detail');
+            const tempDisplay = document.getElementById('live-temp-display');
+
+            processTimeline = gsap.timeline({
+                onUpdate: () => {
+                    progressBar.style.width = (processTimeline.progress() * 100).toFixed(0) + '%';
+                },
+                onComplete: () => {
+                    hideLabel();
+                    isSimulating = false;
+                    document.getElementById('sim-btn-text').textContent = "ដំណើរការខ្សែសង្វាក់ម្តងទៀត";
+                    btnSimulate.classList.remove('bg-orange-500/20');
+                    stageName.textContent = "បានបញ្ចប់ដោយជោគជ័យ";
+                    stageDetail.textContent = "ដុំធ្យូងជីវម៉ាសអនាម័យហាប់ណែន គ្មានផ្សែង ផលិតរួចរាល់លើថាស!";
+
+                    heaterGroup.children.forEach(coil => {
+                        gsap.to(coil.material.color, { r: 0.2, g: 0.2, b: 0.2, duration: 2 });
+                        if (coil.material.emissive) gsap.to(coil.material, { emissiveIntensity: 0, duration: 2 });
+                    });
+                    gsap.to(tempDisplay, { innerText: "48.0 °C", snap: { innerText: 1 }, duration: 2 });
+                }
+            });
+
+            // ដំណាក់កាលទី ១៖ ការបញ្ចូលជីវម៉ាស
+            processTimeline.call(() => {
+                showLabel("ដំណាក់កាលទី ១៖ ការបញ្ចូលជីវម៉ាសស្ងួត", new THREE.Vector3(0, 56, 0));
+                stageName.textContent = "១. បញ្ចូលជីវម៉ាស";
+                stageDetail.textContent = "អង្កាម / កម្ទេចឈើកំពុងហូរចូលតាមកឡាវមុំ 60°";
+            });
+            processTimeline.to(biomassGroup.scale, { x: 1, y: 1, z: 1, duration: 0.5 });
+            processTimeline.to(biomassGroup.position, { y: 35, duration: 1.5, ease: "power1.in" });
+            processTimeline.to(biomassGroup.scale, { x: 0, y: 0, z: 0, duration: 0.2 });
+
+            // ដំណាក់កាលទី ២៖ ការបំប្លែងកាបូនដោយកំដៅ
+            processTimeline.call(() => {
+                showLabel("ដំណាក់កាលទី ២៖ ការបំបែកកំដៅគ្មានអុកស៊ីសែន (387°C)", new THREE.Vector3(0, 25, 0));
+                stageName.textContent = "២. បំប្លែងកាបូន";
+                stageDetail.textContent = "ការបំបែកដោយកំដៅគ្មានអុកស៊ីសែនក្នុងឡដុតដែកអ៊ីណុក SS304";
+                audio.playHum();
+            });
+            heaterGroup.children.forEach(coil => {
+                processTimeline.to(coil.material.color, { r: 1.0, g: 0.25, b: 0, duration: 1.5 }, "<");
+                if (coil.material.emissive) {
+                    coil.material.emissive.setHex(0xff3300);
+                    processTimeline.to(coil.material, { emissiveIntensity: 1.2, duration: 1.5 }, "<");
+                }
+            });
+            processTimeline.to(reactorGroup.children[0].material.color, { r: 0.65, duration: 2 }, "<");
+            processTimeline.to(tempDisplay, { innerText: "387.4 °C", snap: { innerText: 1 }, duration: 2 }, "<");
+
+            // ដំណាក់កាលទី ៣៖ ឧស្ម័ន Syngas និងការបញ្ចុះកំដៅយកទឹកខ្មេះឈើ
+            processTimeline.call(() => {
+                showLabel("ដំណាក់កាលទី ៣៖ ការបញ្ចុះកំដៅចំហាយយកទឹកខ្មេះឈើ", new THREE.Vector3(22, 44, 0));
+                stageName.textContent = "៣. ប្រមូលទឹកខ្មេះឈើ";
+                stageDetail.textContent = "បញ្ចុះកំដៅផ្សែងតាមរបុំទង់ដែងយកទឹកខ្មេះឈើ និងបញ្ចេញឧស្ម័ន Syngas";
+            }, null, "+=0.8");
+            processTimeline.to(vaporGroup.scale, { x: 1, y: 1, z: 1, duration: 0.5 });
+            processTimeline.to(vaporGroup.position, { y: 44, x: 16, duration: 2 });
+            processTimeline.to(vaporGroup.scale, { x: 0, y: 0, z: 0, duration: 0.5 });
+
+            // ដំណាក់កាលទី ៤៖ ការកិនបំបែកធ្យូង
+            processTimeline.call(() => {
+                showLabel("ដំណាក់កាលទី ៤៖ ការកិនបំបែកធ្យូងជីវម៉ាស", new THREE.Vector3(0, -2, 0));
+                stageName.textContent = "៤. កិនម្សៅធ្យូង";
+                stageDetail.textContent = "ម៉ាស៊ីនកិនដងឆកោណពីរវិលក្នុងល្បឿន 35 RPM កិនធ្យូងឱ្យម៉ដ្ឋ <1.5mm";
+            }, null, "+=0.5");
+            processTimeline.to(reactorGroup.children[0].material.color, { r: 0.5, duration: 1 });
+            processTimeline.to(charGroup.scale, { x: 1, y: 1, z: 1, duration: 0.2 });
+            processTimeline.to(charGroup.position, { y: -5, duration: 1.5, ease: "bounce.out" });
+            processTimeline.to(charGroup.scale, { x: 0, y: 0, z: 0, duration: 0.5 }, "+=1.5");
+
+            // ដំណាក់កាលទី ៥៖ ការសង្កត់វីសស្ពីរ៉ាល់
+            processTimeline.call(() => {
+                showLabel("ដំណាក់កាលទី ៥៖ ការសង្កត់បង្ហាប់តាមវីសស្ពីរ៉ាល់", new THREE.Vector3(15, -18, 0));
+                stageName.textContent = "៥. សង្កត់បង្ហាប់ដុំធ្យូង";
+                stageDetail.textContent = "វីសស្ពីរ៉ាល់រុញបង្ហាប់ល្បាយធ្យូងដោយកម្លាំង 8 kN ឆ្លងកាត់ក្បាលពុម្ព";
+            }, null, "+=0.5");
+
+            // ដំណាក់កាលទី ៦៖ ដុំធ្យូងជីវម៉ាសសម្រេច
+            processTimeline.call(() => {
+                showLabel("ដំណាក់កាលទី ៦៖ ដុំធ្យូងជីវម៉ាសអនាម័យរឹងមាំ", new THREE.Vector3(34, -18, 0));
+                stageName.textContent = "៦. ផលិតផលសម្រេច";
+                stageDetail.textContent = "ដុំធ្យូងជីវម៉ាសហាប់ណែន ផ្តល់កំដៅខ្ពស់ ត្រូវបានរុញចេញមកក្រៅ!";
+            }, null, "+=1.5");
+            processTimeline.to(briquette.scale, { x: 1, y: 1, z: 1, duration: 0.2 });
+            processTimeline.to(briquette.position, { x: 36, duration: 2, ease: "linear" });
+        }
+
+        btnSimulate.addEventListener('click', () => {
+            if (!isSimulating) {
+                if (isExploded) btnAssemble.click();
+                isSimulating = true;
+                btnSimulate.classList.add('bg-orange-500/20');
+                document.getElementById('sim-btn-text').textContent = "កំពុងដំណើរការសាកល្បង...";
+                runProcessSequence();
+            } else {
+                if (processTimeline) processTimeline.kill();
+                isSimulating = false;
+                hideLabel();
+                document.getElementById('sim-btn-text').textContent = "ដំណើរការខ្សែសង្វាក់ពេញលេញ";
+                btnSimulate.classList.remove('bg-orange-500/20');
+            }
+        });
+
+        /* =========================================================================
+           ១០. វដ្តបង្ហាញរូបភាព 3D (RENDER LOOP)
+           ========================================================================= */
+        const clock = new THREE.Clock();
+        const tempV = new THREE.Vector3();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            const elapsedTime = clock.getElapsedTime();
+
+            controls.update();
+
+            if (isSimulating) {
+                if (grinderGroup.userData.animParts) {
+                    grinderGroup.userData.animParts.forEach(shaft => {
+                        shaft.rotation.z += 5.5 * delta * shaft.userData.direction;
+                    });
+                }
+                if (mixerGroup.userData.animParts) {
+                    mixerGroup.userData.animParts[0].rotation.y += 3.8 * delta;
+                }
+                if (augerGroup.userData.animParts) {
+                    augerGroup.userData.animParts[0].rotation.x -= 4.2 * delta;
+                }
+            }
+
+            if (activeLabelTarget && processLabel.style.opacity !== '0') {
+                tempV.copy(activeLabelTarget);
+                tempV.y += biocharAssembly.position.y;
+                tempV.project(camera);
+                const x = (tempV.x * .5 + .5) * window.innerWidth;
+                const y = (tempV.y * -.5 + .5) * window.innerHeight;
+
+                if (tempV.z < 1) {
+                    processLabel.style.display = 'block';
+                    processLabel.style.left = `${x}px`;
+                    processLabel.style.top = `${y}px`;
+                } else {
+                    processLabel.style.display = 'none';
+                }
+            }
+
+            if (!isSimulating && !isExploded) {
+                biocharAssembly.position.y = Math.sin(elapsedTime * 1.5) * 1.2;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        /* =========================================================================
+           ម៉ូឌុលទី ១០–១៨៖ ឯកសារកូដបញ្ជាមីក្រូកុងត្រូល័រ, G-CODE, PYTHON និងស្តង់ដារវិស្វកម្ម (ជាភាសាខ្មែរ)
+           ========================================================================= */
+        const EMBEDDED_FIRMWARE_SOURCE = String.raw`
+// កម្មវិធីបញ្ជាមីក្រូកុងត្រូល័រឧស្សាហកម្ម STM32 / ARDUINO (BioConvert_Controller_Firmware.cpp)
+// ពិពណ៌នា៖ ប្រព័ន្ធគ្រប់គ្រងសីតុណ្ហភាព PID បិទជិត ការបញ្ជាម៉ូទ័រ PWM ប្រព័ន្ធសុវត្ថិភាព E-Stop និងការបញ្ជូនទិន្នន័យ JSON
+#ifndef BIOCONVERT_FIRMWARE_H
+#define BIOCONVERT_FIRMWARE_H
+
+#include <Arduino.h>
+#include <SPI.h>
+#include <Wire.h>
+#include <EEPROM.h>
+
+// ការកំណត់ជើងភ្ជាប់ផ្នែករឹង (STM32F407 / ARDUINO MEGA 2560)
+#define PIN_AC_MAINS_SENSE       2   // INT0: សេនស័រចាប់ចំណុចសូន្យនៃភ្លើង AC
+#define PIN_ESTOP_SENSE          3   // INT1: សៀគ្វីប៊ូតុងអាសន្ន E-Stop (NC Contact)
+#define PIN_SSR_HEAT_TRIGGER     4   // PWM/Digital Out: សញ្ញាបញ្ជាដុំកំដៅ SSR
+#define PIN_CRUSHER_RPWM         5   // Timer 3 Ch 1: PWM ម៉ូទ័រកិនធ្យូងវិលទៅមុខ
+#define PIN_CRUSHER_LPWM         6   // Timer 3 Ch 2: PWM ម៉ូទ័រកិនធ្យូងវិលថយក្រោយ
+#define PIN_MIXER_RPWM           7   // Timer 4 Ch 1: PWM ម៉ូទ័រលាយកាវ
+#define PIN_MIXER_LPWM           8   // Timer 4 Ch 2: ទិសដៅម៉ូទ័រលាយកាវ
+#define PIN_AUGER_RPWM           9   // Timer 2 Ch 1: PWM ម៉ូទ័រសង្កត់វីសស្ពីរ៉ាល់
+#define PIN_AUGER_LPWM           10  // Timer 2 Ch 2: ទិសដៅម៉ូទ័រសង្កត់វីសស្ពីរ៉ាល់
+
+const float DEFAULT_PID_KP = 4.25f;
+const float DEFAULT_PID_KI = 0.085f;
+const float DEFAULT_PID_KD = 18.40f;
+const float TARGET_PYROLYSIS_TEMP = 387.0f; // សីតុណ្ហភាពបំបែកកំដៅគោលដៅ (°C)
+const float MAX_SAFE_RETORT_TEMP  = 460.0f; // កម្រិតសីតុណ្ហភាពផ្តាច់សុវត្ថិភាពអតិបរមា (°C)
+const float MIN_SAFE_COOLING_TEMP = 60.0f;  // សីតុណ្ហភាពសុវត្ថិភាពសម្រាប់បញ្ចេញធ្យូង (°C)
+#endif
+`;
+
+        const CNC_GCODE_PROGRAMS = String.raw`
+% (កម្មវិធីទី 101៖ ការកាត់ CNC ភ្លាំងឡដុតដែកអ៊ីណុក SS304 កម្រាស់ 10MM)
+O0101 (SS304_RETORT_FLANGE_PROFILING)
+(ផ្លែកាត់ទី 01៖ ផ្លែហ្វ្រេសខាបាយ 12MM 4-FLUTE ស្រោប ALTIN)
+(សម្ភារៈ៖ បន្ទះដែកអ៊ីណុក SS304 កម្រាស់ 10MM)
+G21 (ប្រព័ន្ធខ្នាតម៉ែត្រ - Metric Units)
+G90 G94 G17 G40 G49 G80
+T01 M06
+S1450 M03 (ល្បឿនបង្វិល 1450 RPM)
+M08 (បើកទឹកបញ្ចុះកំដៅសម្ពាធខ្ពស់)
+(ការស្វានរន្ធខ្ចៅ M8 ចំនួន 8 រន្ធលើរង្វង់អង្កត់ផ្ចិត 180mm BCD)
+G00 X63.640 Y63.640
+G83 G98 Z-12.0 R2.0 Q2.5 F85.0
+G80
+M09 G28 Z0.0
+M30
+`;
+
+        const PYTHON_ANALYTICS_SUITE = String.raw`
+# -*- coding: utf-8 -*-
+"""
+BioConvert Mini - កម្មវិធីគណនាទែរម៉ូឌីណាមិក និងការស្តុកទុកកាបូន (Python Analytics)
+ក្រុមស្រាវជ្រាវវិស្វកម្ម STEM - ខេត្តសៀមរាប និងរាជធានីភ្នំពេញ ប្រទេសកម្ពុជា
+"""
+import math, json
+`;
+
+        const ISO_TOLERANCES_MANUAL = String.raw`
+// ស្តង់ដារកម្រិតលម្អៀងវិស្វកម្ម ISO 286-1 / ISO 286-2 (GD&T)៖
+// ១. កន្លែងស៊កបាដាងដងកិនធ្យូង A/B៖ Ø 15.000 mm (ISO h6: +0.000 / -0.011 mm)
+// ២. រន្ធប្រអប់បាដាង៖ Ø 35.000 mm (ISO H7: +0.025 / -0.000 mm)
+// ៣. អង្កត់ផ្ចិតក្នុងបំពង់វីសសង្កត់៖ Ø 50.000 mm (ISO H8: +0.039 / -0.000 mm)
+// ៤. អង្កត់ផ្ចិតក្រៅស្លាបវីសស្ពីរ៉ាល់៖ Ø 48.000 mm (ISO e8: -0.060 / -0.099 mm)
+// ៥. កន្លែងដាក់បាដាងទប់កម្លាំងរុញ SKF 51105៖ Ø 25.000 mm (ISO j6: +0.009 / -0.004 mm)
+`;
+
+        const COMMISSIONING_CHECKLIST = String.raw`
+// បញ្ជីផ្ទៀងផ្ទាត់សុវត្ថិភាពអគ្គិសនីមុនដំណើរការ (ស្តង់ដារ NFPA 79 / IEC 60204-1)៖
+// - ការវាស់អ៊ីសូឡង់ 500V DC Megger Test៖ ត្រូវធំជាង > 100 Mega-Ohms
+// - ការវាស់ភាពជាប់នៃខ្សែដីសុវត្ថិភាព (PE Ground Continuity)៖ ត្រូវតូចជាង < 0.10 Ohms
+// - ស្ថានភាពផ្ទៀងផ្ទាត់៖ បានអនុម័ត និងត្រួតពិនិត្យត្រឹមត្រូវ
+`;
+
+        const CAMBODIA_PROCUREMENT_MAP = String.raw`
+// បញ្ជីប្រភពទិញសម្ភារៈឧស្សាហកម្មនៅកម្ពុជា (ក្រុងសៀមរាប និងរាជធានីភ្នំពេញ)៖
+// ១. បំពង់ដែកអ៊ីណុកអត់ថ្នេរ SS304 Ø 150mm៖ ហាងលក់ដែកតាមផ្លូវជាតិលេខ ៦ ក្បែរផ្សារម៉ាក្រូ សៀមរាប (~$45/ម៉ែត្រ)
+// ២. សេវាកាត់ឡេស័រ CNC (ភ្លាំង 10mm, ផ្លែកាត់ 4mm)៖ សង្កាត់ទួលសង្កែ ភ្នំពេញ ឬតំបន់ឧស្សាហកម្មសៀមរាប (~$1.20/ម៉ែត្រ)
+// ៣. កងកំដៅសេរ៉ាមិច (150mm ID, 500W)៖ ហាងនាំចូលគ្រឿងអគ្គិសនីភ្នំពេញ ឬបញ្ជាទិញតាមដឹកជញ្ជូន ZTO/J&T (~$14/កង)
+// ៤. កុងត្រូល័រ Omron E5CC PID និង SSR 40A៖ ហាងគ្រឿងស្វ័យប្រវត្តិកម្ម មហាវិថីម៉ៅសេទុង ភ្នំពេញ (~$38 និង ~$8)
+// ៥. បាដាងទប់កម្លាំងរុញ SKF 51105៖ ហាងលក់បាដាងក្បែរផ្សារលើធំថ្មី សៀមរាប (~$6–$9)
+// ៦. ម្សៅមីសុទ្ធ (ម្សៅដំឡូងមី)៖ ផ្សារសាមគ្គី ឬផ្សារលើ ក្រុងសៀមរាប (~$0.80/kg)
+`;
+
+        const MODBUS_REGISTER_MAP = String.raw`
+// តារាងអាសយដ្ឋានទិន្នន័យ MODBUS RTU លើខ្សែ RS-485 (Baud: 115200, 8-N-1, Slave ID: 0x01)
+// Register 40001..40150៖ ប៉ារ៉ាម៉ែត្រតាមដានសីតុណ្ហភាព ចរន្តម៉ូទ័រ និងស្ថានភាពសុវត្ថិភាព
+`;
+
+        const FMEA_RISK_MATRIX = String.raw`
+// តារាងវិភាគហានិភ័យ និងការការពារការខូចខាត (FMEA - ស្តង់ដារ IEC 60812)៖
+// ១. សន្ទះទ្វាររុញឡាវ៖ ការពារការជ្រាបខ្យល់ដោយប្រើទ្រនាប់កៅស៊ូស៊ីលីកូនធន់កំដៅ 2mm ចំនួនពីរជាន់
+// ២. ជញ្ជាំងឡាវ៖ រក្សាមុំទេរ 60° និងខាត់ថ្នេរផ្សារខាងក្នុងឱ្យរលោងដូចកញ្ចក់ដើម្បីការពារការស្ទះអង្កាម
+// ៣. បំពង់ឡដុត៖ ប្រើតែបំពង់ដែកអ៊ីណុកអត់ថ្នេរ SS304 Schedule 10S ផ្សារ TIG ពីរជាន់ជាមួយឧស្ម័នអាកុង
+`;
+
+        const MECHANICAL_CALCULATIONS = String.raw`
+// ការគណនាវិស្វកម្មមេកានិច និងអាយុកាលបាដាង៖
+// ១. បាដាងទប់កម្លាំងរុញ SKF 51105៖ កម្លាំងទ្រឌីណាមិក C = 19.5 kN, បន្ទុករុញជាក់ស្តែង Fa = 8.2 kN
+//    អាយុកាលប្រើប្រាស់ L10 = 13,446,000 ជុំ ស្មើនឹង 11,205 ម៉ោងដំណើរការ (> ៥ ឆ្នាំនៅល្បឿន 20 RPM)
+// ២. កម្រិតសុវត្ថិភាពសម្ពាធបំពង់ឡដុត SS304៖ មេគុណសុវត្ថិភាព SF = 88.4 (មានសុវត្ថិភាពខ្ពស់បំផុត)
+// ៣. សីតុណ្ហភាពសំបកអាវអ៊ីសូឡង់ខាងក្រៅ៖ 44.2°C (មានសុវត្ថិភាពអាចប៉ះនឹងដៃបាន)
+`;
+
+        // Mobile Sidebar Toggle Subroutine
+        function toggleMobileSidebar(forceState) {
+            const sb = document.querySelector('.cad-sidebar');
+            const backdrop = document.getElementById('mobile-panel-backdrop');
+            const icon = document.getElementById('mobile-fab-icon');
+            const txt = document.getElementById('mobile-fab-text');
+            if (!sb) return;
+            const open = typeof forceState === 'boolean' ? forceState : !sb.classList.contains('mobile-open');
+            sb.classList.toggle('mobile-open', open);
+            if (backdrop) backdrop.classList.toggle('visible', open);
+            if (icon) icon.textContent = open ? '✕' : '📋';
+            if (txt) txt.textContent = open ? 'បិទផ្ទាំងព័ត៌មាន' : 'បង្ហាញព័ត៌មាន និងកម្មវិធីសាកល្បង';
+        }
+
+        const mobileBackdrop = document.getElementById('mobile-panel-backdrop');
+        if (mobileBackdrop) mobileBackdrop.addEventListener('click', () => toggleMobileSidebar(false));
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                toggleMobileSidebar(false);
+            }
+        });
+
+        // Live Biochar Simulator Calculation
+        function runLiveBiocharSim() {
+            const sliderTemp = document.getElementById('sim-slider-temp');
+            if (!sliderTemp) return;
+            const temp = parseInt(sliderTemp.value, 10);
+            const feedKg = parseFloat(document.getElementById('sim-slider-feed').value);
+            const binderPct = parseFloat(document.getElementById('sim-slider-binder').value);
+            const feedType = document.getElementById('sim-feedstock-select').value;
+
+            document.getElementById('sim-disp-temp').textContent = temp + ' °C';
+            document.getElementById('sim-disp-feed').textContent = feedKg + ' kg / ថ្ងៃ';
+            document.getElementById('sim-disp-binder').textContent = binderPct.toFixed(1) + ' %';
+
+            let charYieldBase = 46.0 - ((temp - 300) * 0.042);
+            let fixedCBase = 58.0 + ((temp - 300) * 0.065);
+            if (fixedCBase > 88.0) fixedCBase = 88.0;
+
+            if (feedType === 'coconut_shell') {
+                charYieldBase += 4.5;
+                fixedCBase += 4.0;
+            } else if (feedType === 'sawdust') {
+                charYieldBase += 2.0;
+                fixedCBase += 1.5;
+            } else if (feedType === 'corn_cob') {
+                charYieldBase -= 3.0;
+                fixedCBase -= 5.0;
+            }
+
+            const charYield = Math.max(20, Math.min(48, charYieldBase));
+            const gasYield = Math.max(16, ((temp - 300) * 0.045 + 18));
+            const oilYield = Math.max(25, 100 - charYield - gasYield);
+
+            const bChar = document.getElementById('sim-bar-char');
+            const bOil = document.getElementById('sim-bar-oil');
+            const bGas = document.getElementById('sim-bar-gas');
+            const dSplit = document.getElementById('sim-disp-split');
+
+            if (bChar) bChar.style.width = charYield + '%';
+            if (bOil) bOil.style.width = oilYield + '%';
+            if (bGas) bGas.style.width = gasYield + '%';
+            if (dSplit) dSplit.textContent = 'ធ្យូង៖ ' + charYield.toFixed(0) + '% | ទឹកខ្មេះឈើ៖ ' + oilYield.toFixed(0) + '% | ឧស្ម័ន៖ ' + gasYield.toFixed(0) + '%';
+
+            const biocharKg = (feedKg * (charYield / 100)).toFixed(1);
+            const woodVinegarL = (feedKg * (oilYield / 100) * 0.85).toFixed(1);
+            const briquettesKg = (parseFloat(biocharKg) * (1 + binderPct/100)).toFixed(1);
+            const calorific = (19.5 + (fixedCBase - 60) * 0.18).toFixed(1);
+
+            const grossRev = (parseFloat(briquettesKg) * 0.60) + (parseFloat(woodVinegarL) * 2.50);
+            const opex = 6.86 * (feedKg / 50.0);
+            const netProfit = (grossRev - opex).toFixed(2);
+            const payback = (1905 / (Math.max(10, netProfit) * 25)).toFixed(1);
+
+            const rChar = document.getElementById('sim-res-char');
+            const rVin = document.getElementById('sim-res-vinegar');
+            const rBri = document.getElementById('sim-res-briquettes');
+            const rFix = document.getElementById('sim-res-fixedc');
+            const rEne = document.getElementById('sim-res-energy');
+            const rPro = document.getElementById('sim-res-profit');
+            const rPay = document.getElementById('sim-res-payback');
+
+            if (rChar) rChar.textContent = biocharKg + ' kg';
+            if (rVin) rVin.textContent = woodVinegarL + ' លីត្រ';
+            if (rBri) rBri.textContent = briquettesKg + ' kg';
+            if (rFix) rFix.textContent = fixedCBase.toFixed(1) + ' %';
+            if (rEne) rEne.textContent = calorific + ' MJ/kg';
+            if (rPro) rPro.textContent = '+' + netProfit + ' ដុល្លារ / ថ្ងៃ';
+            if (rPay) rPay.textContent = payback + ' ខែ';
+        }
+
+        /* =========================================================================
+           ស្រទាប់ពង្រឹងបទពិសោធន៍អ្នកប្រើប្រាស់ និងភាពងាយស្រួលប្រើប្រាស់ (ENHANCED UX LAYER)
+           ========================================================================= */
+        (function enhanceUX(){
+            const startup = document.getElementById('startup-screen');
+            const progress = document.getElementById('startup-progress');
+            const status = document.getElementById('startup-status');
+            const warning = document.getElementById('engine-warning');
+            const help = document.getElementById('help-popover');
+            const helpBtn = document.getElementById('btn-help');
+            const helpClose = document.getElementById('btn-help-close');
+            const resetBtn = document.getElementById('btn-reset-ui');
+            const setLoad = (pct,msg)=>{ if(progress) progress.style.width=pct+'%'; if(status) status.textContent=msg; };
+            setLoad(38,'កំពុងសាងសង់គំរូ 3D អន្តរកម្ម...');
+            if (typeof THREE === 'undefined') {
+                if(warning) warning.classList.add('visible');
+                setLoad(100,'ម៉ាស៊ីន 3D មិនអាចប្រើបាន — ផ្ទាំងឯកសារយោងរួចរាល់');
+            } else {
+                setLoad(72,'កំពុងភ្ជាប់ប្រព័ន្ធបញ្ជា...');
+                setTimeout(()=>setLoad(100,'ប្រព័ន្ធរួចរាល់សម្រាប់ប្រើប្រាស់'),350);
+            }
+            setTimeout(()=>{ if(startup) startup.classList.add('hidden'); }, 650);
+            const toggleHelp = (force)=>{ if(help) help.classList.toggle('open', typeof force==='boolean'?force:!help.classList.contains('open')); };
+            helpBtn?.addEventListener('click',()=>toggleHelp()); helpClose?.addEventListener('click',()=>toggleHelp(false));
+            resetBtn?.addEventListener('click',()=>{
+                try { focusComponent('reset'); } catch(e) {}
+                try { traceCircuit('all'); } catch(e) {}
+                try { setDisplayMode('xray'); } catch(e) {}
+                toggleHelp(false); toggleMobileSidebar(false);
+            });
+            document.addEventListener('keydown',(e)=>{
+                if(e.target && ['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
+                if(e.key.toLowerCase()==='r') resetBtn?.click();
+                if(['1','2','3','4','5'].includes(e.key)) { const map={1:'mech',2:'elec',3:'wire',4:'sop',5:'sim'}; switchTab(map[e.key]); }
+                if(e.key==='?' || (e.key==='/' && e.shiftKey)) toggleHelp();
+            });
+            window.addEventListener('error',(e)=>{
+                if(String(e?.message||'').match(/THREE|OrbitControls|gsap/i) && warning) warning.classList.add('visible');
+            });
+            document.querySelectorAll('.btn-cad,.btn-trace,.tab-btn').forEach(b=>b.setAttribute('role','button'));
+        })();
+
+        window.onload = () => {
+            setDisplayMode('xray');
+            animate();
+        };
+    </script>
+</body>
+</html>
